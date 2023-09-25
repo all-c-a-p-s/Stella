@@ -1,0 +1,158 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"slices"
+	"strings"
+)
+
+type variable struct {
+	name     string
+	dataType string
+	value    string
+}
+
+type scope struct {
+	begin     int
+	end       int
+	subScopes []*scope
+	parent    *scope
+	vars      []variable
+}
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+// here lineIndex is the start of the scope
+// TODO: fix bug where non-blank lines before or after start of scope cause this to panic
+func findScopeEnd(lines []string, lineIndex int) int {
+	//scopeCount keeps track of scopes opened/closed. When this is zero the current scope has been closed
+	scopeCount := 0 //initialise at 0 because it will immediately become 1 after it reads first line
+
+	for lineNum, line := range lines {
+
+		for i := 0; i < len(line); i++ {
+			if line[i] == '{' { //new scope opened
+				scopeCount++
+			} else if line[i] == '}' { //scope closed
+				scopeCount--
+			}
+		}
+
+		if scopeCount == 0 {
+			return lineIndex + lineNum
+		}
+	}
+	panic("Could not find end of scope")
+}
+
+// lines inside scope passed in as slice all lines in the file
+// begin and end are line numbers of beginning and end of current scope
+func findSubScopes(lines []string, begin, end int, currentScope *scope) []*scope {
+
+	var subScopes []*scope
+	scopeCount := 0 //keeps track of scopes opened/closed. scopeCount of 1 indicates a subScope of the current scope
+
+	readVariables(lines, currentScope)
+
+	for lineNum, line := range lines {
+		for i := 0; i < len(line); i++ { // better than using strings.Fields() in case user doesn't put a space before opening a scope
+			if line[i] == '{' {
+				scopeCount++
+				if scopeCount == 1 { //should only be executed on lines where a scope is actually opened
+					scopeBeginning := begin + lineNum
+					scopeEnd := findScopeEnd(lines[scopeBeginning:end], scopeBeginning)
+
+					var subScope scope
+
+					subScope.begin = scopeBeginning + 1
+					subScope.end = scopeEnd + 1
+					subScope.subScopes = []*scope{}
+					subScope.parent = currentScope
+
+					//recursive call to findSubScopes() to generate tree of scopes/subScopes
+					subScope.subScopes = findSubScopes(lines[scopeBeginning+1:end], scopeBeginning, scopeEnd, &subScope)
+
+					subScopes = append(subScopes, &subScope)
+				}
+			} else if line[i] == '}' {
+				scopeCount--
+			}
+		}
+
+	}
+
+	return subScopes
+}
+
+func findValue(line string) string {
+	words := strings.Fields(line)
+
+	for i := 0; i < len(words); i++ {
+		if words[i] == "=" {
+			return words[i+1]
+		}
+	}
+	panic("Failed to read value")
+}
+
+func readVariable(line string) variable {
+	var types = []string{"int", "string", "bool", "char", "float"}
+
+	words := strings.Fields(line)
+	for i := 0; i < len(words); i++ {
+		if words[i][len(words[i])-1] == ':' { //last character of colon indicates that this is the variable name and the type is next
+			if slices.Contains(types, words[i+1]) {
+				newVariable := variable{
+					name:     words[i][:len(words[i])-1], //name without the colon
+					dataType: words[i+1],
+					value:    findValue(line),
+				}
+				return newVariable
+			}
+		}
+	}
+
+	panic("Failed to read variable declaration")
+}
+
+func readVariables(lines []string, scope *scope) {
+	for _, line := range lines {
+		words := strings.Fields(line)
+		for _, word := range words {
+			if word == "let" {
+				(*scope).vars = append((*scope).vars, readVariable(line))
+			}
+		}
+	}
+}
+
+func main() {
+	src, err := os.Open("src.txt")
+	check(err)
+
+	//scanner used to avoid OS-specific problems, e.g. windows having "\r\n" for newlines rather than just "\n"
+	scanner := bufio.NewScanner(src)
+
+	var lines []string
+
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text()) //read text from each line's slice
+	}
+
+	//globalScope is the scope of the entire program (i.e. everything)
+	var globalScope scope
+
+	globalScope.begin = 0
+	globalScope.end = len(lines)
+	globalScope.subScopes = []*scope{}
+	globalScope.parent = nil
+
+	globalScope.subScopes = findSubScopes(lines, 0, len(lines), &globalScope)
+	fmt.Println(globalScope.subScopes[0].subScopes[0].subScopes[0])
+}
