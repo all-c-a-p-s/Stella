@@ -1,0 +1,17 @@
+let name: string = seba
+if {
+    for {
+
+    }
+
+}
+
+else if {
+    for {
+    
+    }
+
+} else {
+
+}
+
