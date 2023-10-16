@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 )
 
@@ -57,7 +58,7 @@ func readScope(lines []string, begin, end int, currentScope *scope) {
 
 				if scopeCount == 2 { //only execute on lines where a scope is actually opened
 					scopeBeginning := begin + lineNum
-					scopeEnd := findScopeEnd(lines[lineNum:], scopeBeginning) //lines[lineNum:] because the slice of the function parameter is passed
+					scopeEnd := findScopeEnd(lines, scopeBeginning) //lines[lineNum:] because the slice of the function parameter is passed
 					//to findScopeEnd, so we need the relative position
 
 					subScope := scope{
@@ -68,9 +69,8 @@ func readScope(lines []string, begin, end int, currentScope *scope) {
 						vars:      map[string]variable{},
 					}
 
-					readScope(lines, scopeBeginning, scopeEnd, &subScope)
-
 					(*currentScope).subScopes = append((*currentScope).subScopes, &subScope)
+					readScope(lines, scopeBeginning, scopeEnd, &subScope)
 				}
 
 			} else if line[i] == '}' {
@@ -102,4 +102,5 @@ func main() {
 	}
 
 	readScope(lines, 0, len(lines), &globalScope)
+	fmt.Println("Compilation successful")
 }
