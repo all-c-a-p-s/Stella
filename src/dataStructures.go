@@ -7,7 +7,7 @@ import (
 )
 
 type variable struct { //name not used here because it will be stored as the key of the hashmap of variables
-	dataType  string
+	dataType  primitiveType
 	initScope *scope
 	constant  bool
 }
@@ -16,26 +16,48 @@ type expression struct {
 	dataType string
 }
 
-func primitiveTypes() []string {
-	return []string{"int", "float", "bool", "string"}
+func primitiveTypes() []primitiveType {
+	return []primitiveType{Int, Float, Bool, String}
+}
+
+func charType(char byte) string {
+	switch char {
+	case 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90: //uppercase letter
+		return "letter"
+	case 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122: //lowercase
+		return "letter"
+	case 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
+		return "number"
+	case 95:
+		return "underscore"
+	default:
+		return "other"
+	}
+
 }
 
 func validName(name string, lineNum int) string {
-	if !((name[0] >= 65 && name[0] <= 90) || (name[0] >= 97 && name[0] <= 122)) { //doesn't begin with uppercase or lowercase letter
+	if !(charType(name[0]) == "letter") { //doesn't begin with uppercase or lowercase letter
 		panic(fmt.Sprintf("Line %d - Name '%s' is invalid because it does not begin with a letter", lineNum+1, name))
 	}
 
-	for i := 0; i < len(name); i++ {
-		if !((name[i] >= 65 && name[i] <= 90) || (name[i] >= 97 && name[i] <= 122) || (name[i] == 95)) { //character other than letters or underscore
+	for i := 0; i < len(name)-1; i++ { //last character can be syntactic character
+		if !(charType(name[i]) == "letter" || charType(name[i]) == "number" || charType(name[i]) == "underscore") { //character other than letters, number or underscore
 			panic(fmt.Sprintf("Line %d - Name '%s' is invalid because it contains invalid character '%s'", lineNum+1, name, string(name[i])))
 		}
+	}
+
+	last := len(name) - 1
+
+	if !(charType(name[last]) == "letter" || charType(name[last]) == "number" || syntacticCharacter(name[last])) { //last character can be annotation character
+		panic(fmt.Sprintf("Line %d - Name '%s' is invalid because it contains invalid last character '%s'", lineNum+1, name, string(name[len(name)-1])))
 	}
 	return name //no exit conditions triggered, so name must be valid
 }
 
-func annotationCharacter(char byte) bool { //characters which have a syntactic function
+func syntacticCharacter(char byte) bool { //characters which have a syntactic function
 	switch char {
-	case ':' | '(' | ')' | '[' | ']' | '{' | '}':
+	case ':', '(', ')', '[', ']', '{', '}':
 		return true
 	default:
 		return false
@@ -49,13 +71,22 @@ func declarationKeyword(word string) bool {
 	return false
 }
 
+func removeSyntacticChars(word string) (removed string) {
+	for i := 0; i < len(word); i++ {
+		if !syntacticCharacter(word[i]) {
+			removed += string(word[i])
+		}
+	}
+	return removed
+}
+
 func readName(lines []string, lineNum int) string {
 	line := lines[lineNum]
 	words := strings.Fields(line)
 
 	for i := 0; i < len(words); i++ {
 		if declarationKeyword(words[i]) {
-			if annotationCharacter(words[i+1][len(words[i+1])-1]) { //names can have syntactic characters e.g. ':' or '(' after them without a space
+			if syntacticCharacter(words[i+1][len(words[i+1])-1]) { //names can have syntactic characters e.g. ':' or '(' after them without a space
 				return validName(words[i+1][:len(words[i+1])], lineNum)
 			}
 			return validName(words[i+1], lineNum)
@@ -64,11 +95,12 @@ func readName(lines []string, lineNum int) string {
 	panic(fmt.Sprintf("Line %d - invalid name in declaration", lineNum+1))
 }
 
-func readVariable(lines []string, lineNum int) (newVariable variable) {
+func readVariable(lines []string, lineNum int, currentScope *scope) (newVariable variable) {
 
-	var name string
-	var dataType string
+	var dataType primitiveType
 	constant := false
+
+	primitives := []string{"int", "float", "bool", "string"}
 
 	words := strings.Fields(lines[lineNum])
 
@@ -78,17 +110,17 @@ func readVariable(lines []string, lineNum int) (newVariable variable) {
 
 	for i := 0; i < len(words); i++ {
 		if words[i][len(words[i])-1] == ':' { //last character of colon indicates that this is the variable name and the type is next
-			name = words[i][:len(words[i])-1] //name without the colon
-			if slices.Contains(primitiveTypes(), words[i+1]) {
-				dataType = words[i+1]
+			if slices.Contains(primitives, words[i+1]) {
+				dataType = readType(words[i+1], lineNum)
+			} else {
+				panic(fmt.Sprintf("Line %d - data type %s is invalid", lineNum+1, words[i+1]))
 			}
-			panic(fmt.Sprintf("Line %d - Variable %s has invalid type", lineNum+1, name))
 		}
-		panic(fmt.Sprintf("Line %d - Variable declaration without type annotation", lineNum+1))
 	}
 	newVariable.dataType = dataType
 	newVariable.constant = constant
-	panic("Keyword 'let' used without variable declaration")
+	newVariable.initScope = currentScope
+	return newVariable
 }
 
 func readVariables(lines []string, scope *scope) {
@@ -104,7 +136,7 @@ func readVariables(lines []string, scope *scope) {
 		}
 		for _, word := range words {
 			if word == "let" && scopeCount == 0 { //only read variables local to the current scope, not its subscopes
-				(*scope).vars[readName(lines, lineNum)] = readVariable(lines, lineNum)
+				(*scope).vars[readName(lines, lineNum)] = readVariable(lines, lineNum, scope)
 			}
 		}
 	}
@@ -118,11 +150,7 @@ func assignValue(lines []string, lineNum int, currentScope *scope) {
 			(*currentScope).vars[name] = variable
 		}
 		panic(fmt.Sprintf("Line %d - Cannot mutate constant %s", lineNum, name))
+	} else { //variable name not found
+		panic(fmt.Sprintf("Line %d - variable name %s does not exist", lineNum, name))
 	}
-
-	panic(fmt.Sprintf("Line %d - variable name %s does not exist", lineNum, name))
-}
-
-func readExpression(lines []string, lineNum int) {
-
 }

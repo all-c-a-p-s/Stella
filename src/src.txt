@@ -1,4 +1,4 @@
-let name: string = seba
+let name: string = "seba"
 if {
     for {
 
