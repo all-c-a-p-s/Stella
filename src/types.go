@@ -12,6 +12,7 @@ const (
 	Int
 	Bool
 	Float
+	Void //only for functions
 	Invalid
 )
 
@@ -53,13 +54,14 @@ func getValType(value string, lineNum int) primitiveType {
 func getType(expression string, lineNum int, currentScope *scope) primitiveType {
 	//first check if expression contains variable names
 	//variable names will be either their own word, or next to annotation characters
-	//TODO: implement this for function names as well
 	words := strings.Fields(expression)
 	typesFound := []primitiveType{}
 	for _, word := range words {
-		if variable, ok := (*currentScope).vars[removeSyntacticChars(word)]; ok {
+		if variable, ok := (*currentScope).vars[removeSyntacticChars(word)]; ok { //hashmap lookup of variable names
 			typesFound = append(typesFound, variable.dataType)
-		} else { //not a variable name so it must be a value
+		} else if function, ok := (*currentScope).functions[removeSyntacticChars(word)]; ok { //function names
+			typesFound = append(typesFound, function.returnType)
+		} else { //not a variable or function name so it must be a value
 			typesFound = append(typesFound, getValType(removeSyntacticChars(word), lineNum))
 		}
 	}
