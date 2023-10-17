@@ -6,6 +6,10 @@ if {
 
 }
 
+func sayHi(name string) -> string {
+    print("hi %s", name)
+}
+
 else if {
     for {
     

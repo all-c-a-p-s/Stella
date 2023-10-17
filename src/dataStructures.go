@@ -2,14 +2,17 @@ package main
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 )
 
 type variable struct { //name not used here because it will be stored as the key of the hashmap of variables
-	dataType  primitiveType
-	initScope *scope
-	constant  bool
+	dataType primitiveType
+	constant bool
+}
+
+type function struct {
+	returnType primitiveType
+	parameters map[string]variable
 }
 
 type expression struct {
@@ -85,22 +88,28 @@ func readName(lines []string, lineNum int) string {
 	words := strings.Fields(line)
 
 	for i := 0; i < len(words); i++ {
-		if declarationKeyword(words[i]) {
+		if declarationKeyword(words[i]) && words[i] != "func" {
 			if syntacticCharacter(words[i+1][len(words[i+1])-1]) { //names can have syntactic characters e.g. ':' or '(' after them without a space
 				return validName(words[i+1][:len(words[i+1])], lineNum)
 			}
 			return validName(words[i+1], lineNum)
+		} else if words[i] == "func" {
+			var funcName string
+			for j := 0; j < len(words[i+1]); j++ {
+				if words[i+1][j] == '(' { //start of function parameters
+					break
+				}
+				funcName += string(words[i+1][j])
+			}
 		}
 	}
 	panic(fmt.Sprintf("Line %d - invalid name in declaration", lineNum+1))
 }
 
-func readVariable(lines []string, lineNum int, currentScope *scope) (newVariable variable) {
+func readVariable(lines []string, lineNum int) (newVariable variable) {
 
 	var dataType primitiveType
 	constant := false
-
-	primitives := []string{"int", "float", "bool", "string"}
 
 	words := strings.Fields(lines[lineNum])
 
@@ -110,16 +119,12 @@ func readVariable(lines []string, lineNum int, currentScope *scope) (newVariable
 
 	for i := 0; i < len(words); i++ {
 		if words[i][len(words[i])-1] == ':' { //last character of colon indicates that this is the variable name and the type is next
-			if slices.Contains(primitives, words[i+1]) {
-				dataType = readType(words[i+1], lineNum)
-			} else {
-				panic(fmt.Sprintf("Line %d - data type %s is invalid", lineNum+1, words[i+1]))
-			}
+			dataType = readType(words[i+1], lineNum)
+
 		}
 	}
 	newVariable.dataType = dataType
 	newVariable.constant = constant
-	newVariable.initScope = currentScope
 	return newVariable
 }
 
@@ -136,10 +141,87 @@ func readVariables(lines []string, scope *scope) {
 		}
 		for _, word := range words {
 			if word == "let" && scopeCount == 0 { //only read variables local to the current scope, not its subscopes
-				(*scope).vars[readName(lines, lineNum)] = readVariable(lines, lineNum, scope)
+				(*scope).vars[readName(lines, lineNum)] = readVariable(lines, lineNum)
 			}
 		}
 	}
+}
+
+func readFunction(lines []string, lineNum int) (newFunction function) {
+	var returnType primitiveType
+	void := true
+
+	words := strings.Fields(lines[lineNum])
+	for i := 0; i < len(words); i++ {
+		if words[i] == "->" {
+			void = false
+			returnType = readType(words[i+1], lineNum)
+		}
+	}
+
+	if void {
+		returnType = Void
+	}
+
+	newFunction.returnType = returnType
+	newFunction.parameters = readParameters(words[1], lineNum)
+
+	return newFunction
+}
+
+func readFunctions(lines []string, scope *scope) {
+	scopeCount := 0 //used to keep track of scopes opened/closed
+	for lineNum, line := range lines[(*scope).begin:(*scope).end] {
+		words := strings.Fields(line)
+		for i := 0; i < len(line); i++ {
+			if line[i] == '{' {
+				scopeCount++
+			} else if line[i] == '}' {
+				scopeCount--
+			}
+		}
+		for _, word := range words {
+			if word == "func" && scopeCount == 0 { //only read variables local to the current scope, not its subscopes
+				(*scope).functions[readName(lines, lineNum)] = readFunction(lines, lineNum)
+			}
+		}
+	}
+}
+
+func readParameters(funcName string, lineNum int) (parameters map[string]variable) {
+	bracketCount := 0
+	params := ""
+	for i := 0; i < len(funcName); i++ {
+		if funcName[i] == '(' {
+			bracketCount++
+		} else if funcName[i] == ')' {
+			bracketCount--
+		}
+
+		if bracketCount == 1 {
+			params += string(funcName[i])
+		}
+	}
+
+	params = removeSyntacticChars(params) //removes opening bracket
+	funcParams := strings.Split(params, ",")
+
+	for _, param := range funcParams {
+		words := strings.Fields(param)
+		if len(words) != 2 {
+			panic(fmt.Sprintf("Line %d - function %s is invalid", lineNum+1, param))
+		}
+		paramType := readType(words[1], lineNum)
+
+		parameter := variable{
+			dataType: paramType,
+			constant: true,
+		}
+
+		parameters[words[0]] = parameter
+	}
+
+	return parameters
 }
 
 func assignValue(lines []string, lineNum int, currentScope *scope) {
@@ -149,8 +231,8 @@ func assignValue(lines []string, lineNum int, currentScope *scope) {
 		if !variable.constant {
 			(*currentScope).vars[name] = variable
 		}
-		panic(fmt.Sprintf("Line %d - Cannot mutate constant %s", lineNum, name))
+		panic(fmt.Sprintf("Line %d - Cannot mutate constant %s", lineNum+1, name))
 	} else { //variable name not found
-		panic(fmt.Sprintf("Line %d - variable name %s does not exist", lineNum, name))
+		panic(fmt.Sprintf("Line %d - variable name %s does not exist", lineNum+1, name))
 	}
 }

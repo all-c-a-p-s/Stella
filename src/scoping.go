@@ -12,6 +12,7 @@ type scope struct {
 	subScopes []*scope
 	parent    *scope
 	vars      map[string]variable
+	functions map[string]function
 }
 
 func check(err error) {
