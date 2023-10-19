@@ -13,6 +13,7 @@ type scope struct {
 	parent    *scope
 	vars      map[string]variable
 	functions map[string]function
+	selection []selectionStatement
 }
 
 func check(err error) {
@@ -29,22 +30,23 @@ func findScopeEnd(lines []string, begin int) int {
 		for i := 0; i < len(line); i++ {
 			if line[i] == '{' {
 				scopeCount++
-			} else if line[i] == '}' {
-				scopeCount--
+			} else if line[i] == '}' && lineNum+begin != begin { //important for lines where a scope is opened on the same line where another is closed
+				scopeCount-- //for lines which do not close the current scope but do close a scope
+				if scopeCount == 0 {
+					return begin + lineNum
+				}
 			}
-		}
-
-		if scopeCount == 0 {
-			return begin + lineNum
 		}
 	}
 
-	panic("Could not find end of scope")
+	panic(fmt.Sprintf("Line %d - scope opened but never closed", begin+1))
 }
 
 func readScope(lines []string, begin, end int, currentScope *scope) {
 
 	readVariables(lines, currentScope)
+	readFunctions(lines, currentScope)
+	readSelection(lines, currentScope)
 
 	scopeCount := 0 //keeps track of scopes opened/scopes closed. Count of 2 will indicate a new subscope being opened
 
@@ -103,5 +105,6 @@ func main() {
 	}
 
 	readScope(lines, 0, len(lines), &globalScope)
-	fmt.Println("Compilation successful")
+	fmt.Println("Compiled successfully")
+	fmt.Println(globalScope)
 }

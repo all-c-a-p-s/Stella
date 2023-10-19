@@ -55,20 +55,26 @@ func getType(expression string, lineNum int, currentScope *scope) primitiveType 
 	//first check if expression contains variable names
 	//variable names will be either their own word, or next to annotation characters
 	words := strings.Fields(expression)
-	typesFound := []primitiveType{}
+	var typesFound []primitiveType
 	for _, word := range words {
 		if variable, ok := (*currentScope).vars[removeSyntacticChars(word)]; ok { //hashmap lookup of variable names
 			typesFound = append(typesFound, variable.dataType)
 		} else if function, ok := (*currentScope).functions[removeSyntacticChars(word)]; ok { //function names
 			typesFound = append(typesFound, function.returnType)
-		} else { //not a variable or function name so it must be a value
-			typesFound = append(typesFound, getValType(removeSyntacticChars(word), lineNum))
+		} else { //not a variable or function name, so it must be a value/operator
+			if len(removeSyntacticChars(word)) != 0 && !(booleanOperator(word)) { //cannot be an operator
+				typesFound = append(typesFound, getValType(removeSyntacticChars(word), lineNum))
+			}
 		}
 	}
 	for i := 1; i < len(typesFound); i++ { //checks that all types found are the same
 		if typesFound[i] != typesFound[0] {
 			panic(fmt.Sprintf("Line %d - Expression contains different types", lineNum+1))
 		}
+	}
+
+	if booleanExpression(expression) {
+		return Bool
 	}
 
 	return typesFound[0] //all types in expression are the same, and the expression must have a type so this works
