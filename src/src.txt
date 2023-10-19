@@ -1,21 +1,20 @@
 let name: string = "seba"
-if {
+let age: int = 16
+if (name == "seba") {
     for {
 
     }
+
+} else if (name == "riccardo"){
+    for {
+    
+    }
+
+} else (7 > 9) {
 
 }
 
 func sayHi(name string) -> string {
     print("hi %s", name)
-}
-
-else if {
-    for {
-    
-    }
-
-} else {
-
 }
 
