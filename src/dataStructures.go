@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -31,7 +32,26 @@ type selectionStatement struct {
 	end           int //last line of statement, these are used to check if else if/else statements are opened on the same line as if statements are closed
 }
 
-func primitiveTypes() []primitiveType {
+type iterator struct {
+	dataType primitiveType
+	start    int
+	end      int
+	step     int
+}
+
+type forLoop struct {
+	iterator iterator
+	begin    int
+	end      int
+}
+
+type infiniteLoop struct {
+	exitCondition string
+	begin         int
+	end           int
+}
+
+func primitiveTypes() []primitiveType { //returns slice of type primitiveType containing primitives
 	return []primitiveType{Int, Float, Bool, String}
 }
 
@@ -310,6 +330,154 @@ func readSelection(lines []string, scope *scope) {
 					}
 					break //otherwise else ifs will trigger condition for ifs on next word
 				}
+			}
+		}
+	}
+}
+
+func readIterator(it string, lineNum int) iterator {
+	newIterator := iterator{
+		dataType: Int,
+		start:    0,
+		end:      0,
+		step:     1,
+	}
+
+	parts := strings.Split(it, ":")
+	fmt.Println(parts)
+
+	if len(parts) == 2 {
+		start, err := strconv.Atoi(string(parts[0]))
+		if err != nil {
+			panic(fmt.Sprintf("Line %d - Start of iterators must be an integer value", lineNum))
+		}
+
+		end, err := strconv.Atoi(string(parts[1]))
+		if err != nil {
+			panic(fmt.Sprintf("Line %d - End of iterators must be an integer value", lineNum))
+		}
+
+		if start >= end {
+			panic(fmt.Sprintf("Line %d - Iterators cannot have end less than or equal to start", lineNum))
+		}
+
+		newIterator.start = start
+		newIterator.end = end
+
+	} else if len(parts) == 3 {
+		start, err := strconv.Atoi(string(parts[0]))
+		if err != nil {
+			panic(fmt.Sprintf("Line %d - Start of iterators must be an integer value", lineNum))
+		}
+
+		step, err := strconv.Atoi(string(parts[1]))
+		if err != nil {
+			panic(fmt.Sprintf("line %d - Step of iterators must be an integer value", lineNum))
+		}
+
+		end, err := strconv.Atoi(string(parts[2]))
+		if err != nil {
+			panic(fmt.Sprintf("Line %d - End of iterators must be an integer value", lineNum))
+		}
+
+		if start >= end {
+			panic(fmt.Sprintf("Line %d - Iterators cannot have end less than or equal to start", lineNum))
+		}
+
+		newIterator.start = start
+		newIterator.end = end
+		newIterator.step = step
+	} else {
+		panic(fmt.Sprintf("Line %d - Invalid iterator declaration", lineNum))
+	}
+
+	return newIterator
+}
+
+func readForLoop(lines []string, lineNum int) (newForLoop forLoop) {
+	bracketCount := 0
+	var it string
+
+	for i := 0; i < len(lines[lineNum]); i++ {
+		if lines[lineNum][i] == '(' {
+			bracketCount++
+		} else if lines[lineNum][i] == ')' && bracketCount == 1 {
+			bracketCount--
+			it += string(lines[lineNum][i])
+		}
+
+		if bracketCount == 1 {
+			it += string(lines[lineNum][i])
+		}
+	}
+
+	newForLoop.iterator = readIterator(it[1:len(it)-1], lineNum)
+	newForLoop.begin = lineNum
+	newForLoop.end = findScopeEnd(lines, newForLoop.begin)
+
+	return newForLoop
+}
+
+func readIteration(lines []string, scope *scope) {
+	scopeCount := 0 //used to keep track of scopes opened/closed
+	for lineNum, line := range lines[(*scope).begin:(*scope).end] {
+		words := strings.Fields(line)
+		for i := 0; i < len(line); i++ {
+			if line[i] == '{' {
+				scopeCount++
+			} else if line[i] == '}' {
+				scopeCount--
+			}
+		}
+		for i := 0; i < len(words); i++ {
+			if scopeCount == 1 { //1 because if statement will have opened a scope
+				if words[i] == "for" { //only read variables local to the current scope, not its subscopes.
+					(*scope).iteration = append((*scope).iteration, readForLoop(lines, (*scope).begin+lineNum))
+				}
+			}
+		}
+	}
+}
+
+func findExitCondition(lines []string, begin int) { //should only be called after the loop keyword has already been read
+
+	scopeCount := 0
+
+	for _, line := range lines[begin:] { //first line passed in will be line where loop is opened
+		words := strings.Fields(line)
+		for _, word := range words {
+			if word == "break" && scopeCount == 1 {
+				return
+			}
+		}
+		for i := 0; i < len(line); i++ {
+			if line[i] == '{' {
+				scopeCount++
+			} else if line[i] == '}' {
+				scopeCount--
+			}
+
+		}
+		if scopeCount == 0 {
+			panic(fmt.Sprintf("Line %d - Infinite loop created without exit condition", begin))
+		}
+	}
+}
+
+func readInfiniteLoop(lines []string, lineNum int) (newLoop infiniteLoop) {
+	findExitCondition(lines, lineNum)
+	end := findScopeEnd(lines, lineNum)
+	newLoop.begin = lineNum
+	newLoop.end = end
+	return newLoop
+}
+
+func readInfiniteLoops(lines []string, scope *scope) {
+	for lineNum, line := range lines {
+		words := strings.Fields(line)
+		for _, word := range words {
+			if word == "loop" {
+				(*scope).loops = append((*scope).loops, readInfiniteLoop(lines, lineNum))
 			}
 		}
 	}

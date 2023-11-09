@@ -14,6 +14,8 @@ type scope struct {
 	vars      map[string]variable
 	functions map[string]function
 	selection []selectionStatement
+	iteration []forLoop
+	loops     []infiniteLoop
 }
 
 func check(err error) {
@@ -47,6 +49,8 @@ func readScope(lines []string, begin, end int, currentScope *scope) {
 	readVariables(lines, currentScope)
 	readFunctions(lines, currentScope)
 	readSelection(lines, currentScope)
+	readIteration(lines, currentScope)
+	//readInfiniteLoops(lines, currentScope)
 
 	scopeCount := 0 //keeps track of scopes opened/scopes closed. Count of 2 will indicate a new subscope being opened
 
@@ -106,5 +110,5 @@ func main() {
 
 	readScope(lines, 0, len(lines), &globalScope)
 	fmt.Println("Compiled successfully")
-	fmt.Println(globalScope)
+	fmt.Println(globalScope.subScopes[0])
 }
