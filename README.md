@@ -46,18 +46,18 @@ syntactic characters in myLang each have a single specific purpose
 | character | purpose                                                     |
 |-----------|-------------------------------------------------------------|
 | :         | type annotations                                            |
-| {}        | opening and closing scopes evaluating to expressions        |
-| []        | containers for collections such as arrays, vectors and maps |
-| ()        | containing parameters of a function                         |
+| {}        | to open and close scopes evaluating to expressions          |
+| []        | to contain for collections such as arrays, vectors and maps |
+| ()        | to contain parameters of a function                         |
 | ,         | separating values                                           |
-| <>        | containing types/sizes of collections                       |
+| <>        | to contain types/sizes of collections                       |
 | ->        | denoting the return type of functions                       |
 
 
 collections in myLang are types which can be attributed to variables:
 ```
-let nums :: arr<int, 5> = [23, 5, 90, 2, 88] --fixed size array
-let names :: vec<string> = ["bob", "jim", "jeff"] --vector of variable size
+let nums: arr<int, 5> = [23, 5, 90, 2, 88] --fixed size array
+let names: vec<string> = ["bob", "jim", "jeff"] --vector of variable size
 let ages: map<string, int> = [
   "bob" 12,
   "timmy" 50,
