@@ -1,5 +1,8 @@
 package main
 
+// NOTE: I am currently completely rewriting this file in parser.go
+// so it isn't really used
+
 import (
 	"fmt"
 	"strconv"
@@ -394,7 +397,6 @@ func readIterator(it string, lineNum int) iterator {
 
 	return newIterator
 }
-
 
 func readForLoop(lines []string, lineNum int) (newForLoop forLoop) {
 	bracketCount := 0
