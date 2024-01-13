@@ -1,26 +1,12 @@
 let name: string = "seba"
 let age: int = 16
-if (name == "seba") {
-    for (0:1:10) {
 
-    }
-
-} else if (name == "riccardo"){
-
-} else (7 > 9) {
-
+if name == "seba" {  
+  print("Hi seba")
+} else if name == "riccardo" {
+  print("hi dad")
+} else if name == "rosamund" {
+  print("hi mum")
+} else {
+  print("hi");
 }
-
-loop {
-
-    break
-}
-
-func sayHi(name string) -> string {
-    print("hi %s", name)
-}
-
-if (9 == 9) {
-    
-}
-

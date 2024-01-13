@@ -7,15 +7,22 @@ import (
 )
 
 type scope struct {
-	begin     int //0-indexed, inclusive
-	end       int //0-indexed, exclusive
+	begin     int // 0-indexed, inclusive
+	end       int // 0-indexed, exclusive
 	subScopes []*scope
 	parent    *scope
 	vars      map[string]variable
 	functions map[string]function
+	arrs      map[string]array
 	selection []selectionStatement
 	iteration []forLoop
 	loops     []infiniteLoop
+}
+
+type Location struct {
+	// location in source file
+	lineNum   int
+	charIndex int
 }
 
 func check(err error) {
@@ -25,15 +32,16 @@ func check(err error) {
 }
 
 func findScopeEnd(lines []string, begin int) int {
+	scopeCount := 0 // keeps track of scopes opened/scopes closed
+	opened := false // keeps track of if scope has been opened yet. important for lines where a scope if opened on the same line where another is closed
 
-	scopeCount := 0 //keeps track of scopes opened/scopes closed
-
-	for lineNum, line := range lines[begin:] { //first line passed in will be line where scope is opened
+	for lineNum, line := range lines[begin:] { // first line passed in will be line where scope is opened
 		for i := 0; i < len(line); i++ {
 			if line[i] == '{' {
+				opened = true
 				scopeCount++
-			} else if line[i] == '}' && lineNum+begin != begin { //important for lines where a scope is opened on the same line where another is closed
-				scopeCount-- //for lines which do not close the current scope but do close a scope
+			} else if line[i] == '}' && opened {
+				scopeCount-- // for lines which do not close the current scope but do close a scope
 				if scopeCount == 0 {
 					return begin + lineNum
 				}
@@ -41,21 +49,57 @@ func findScopeEnd(lines []string, begin int) int {
 		}
 	}
 
-	panic(fmt.Sprintf("Line %d - scope opened but never closed", begin+1))
+	panic(fmt.Sprintf("Line %d: scope opened but never closed", begin+1))
+}
+
+func findBracketEnd(bracketType byte, lines []string, lineNum int, charIndex int) Location {
+	// should be called wher lineNum and charIndex are the location of the character operning the brackets
+	// this means that it will become 1 on the first character
+	bracketCount := 0
+	var closingBracket byte
+	switch bracketType {
+	case '(':
+		closingBracket = ')'
+	case '{':
+		closingBracket = '}'
+	case '[':
+		closingBracket = ']'
+	default:
+		panic("Invalid character used as bracketType")
+	}
+	for i := lineNum; i < len(lines); i++ {
+		line := lines[i]
+		var charStart int // character to start searching the line
+		if i == lineNum { // only on start line
+			charStart = charIndex
+		}
+		for j := charStart; j < len(line); j++ {
+			switch line[j] {
+			case bracketType:
+				bracketCount++
+			case closingBracket:
+				bracketCount--
+			}
+			if bracketCount == 0 { // 0 at end of loop means it must have been closed
+				return Location{lineNum: i, charIndex: j}
+			}
+		}
+
+	}
+	panic(fmt.Sprintf("Line %d: bracket %s opened but never closed", lineNum+1, string(bracketType)))
 }
 
 func readScope(lines []string, begin, end int, currentScope *scope) {
-
 	readVariables(lines, currentScope)
 	readFunctions(lines, currentScope)
 	readSelection(lines, currentScope)
 	readIteration(lines, currentScope)
-	//readInfiniteLoops(lines, currentScope)
+	readInfiniteLoops(lines, currentScope)
 
-	scopeCount := 0 //keeps track of scopes opened/scopes closed. Count of 2 will indicate a new subscope being opened
+	scopeCount := 0 // keeps track of scopes opened/scopes closed. Count of 2 will indicate a new subscope being opened
 
-	if (*currentScope).parent == nil { //global scope
-		scopeCount++ //incremented because the global scope is the only scope where a bracket is not used to open the scope
+	if (*currentScope).parent == nil { // global scope
+		scopeCount++ // incremented because the global scope is the only scope where a bracket is not used to open the scope
 	}
 
 	for lineNum, line := range lines[begin:end] {
@@ -63,10 +107,10 @@ func readScope(lines []string, begin, end int, currentScope *scope) {
 			if line[i] == '{' {
 				scopeCount++
 
-				if scopeCount == 2 { //only execute on lines where a scope is actually opened
+				if scopeCount == 2 { // only execute on lines where a scope is actually opened
 					scopeBeginning := begin + lineNum
-					scopeEnd := findScopeEnd(lines, scopeBeginning) //lines[lineNum:] because the slice of the function parameter is passed
-					//to findScopeEnd, so we need the relative position
+					scopeEnd := findScopeEnd(lines, scopeBeginning) // lines[lineNum:] because the slice of the function parameter is passed
+					// to findScopeEnd, so we need the relative position
 
 					subScope := scope{
 						begin:     scopeBeginning,
@@ -90,25 +134,31 @@ func readScope(lines []string, begin, end int, currentScope *scope) {
 func main() {
 	src, err := os.Open("src.txt")
 	check(err)
-	defer src.Close()
+	defer func(src *os.File) {
+		err := src.Close()
+		if err != nil {
+			panic("Error closing source code file")
+		}
+	}(src)
 
-	var lines []string //all lines of source code will be passed into functions
+	var lines []string // all lines of source code will be passed into functions
 
-	scanner := bufio.NewScanner(src) //used to avoid OS-specific problems such as Windows using "\r\n" for newline rather than just "\n"
+	scanner := bufio.NewScanner(src) // used to avoid OS-specific problems such as Windows using "\r\n" for newline rather than just "\n"
 
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
 
-	globalScope := scope{ //where globalScope is the entire file
+	globalScope := scope{ // where globalScope is the entire file
 		begin:     0,
 		end:       len(lines),
 		subScopes: []*scope{},
 		parent:    nil,
 		vars:      map[string]variable{},
 	}
-
-	readScope(lines, 0, len(lines), &globalScope)
-	fmt.Println("Compiled successfully")
-	fmt.Println(globalScope.subScopes[0])
+	expr := parseExpression("((5+2-3) >= ((3+45) + 3)) && (5 == 4)", 0, &globalScope)
+	fmt.Println(expressionType(expr, 0, &globalScope))
+	// readScope(lines, 0, len(lines), &globalScope)
+	// fmt.Println("Compiled successfully")
+	// fmt.Println(globalScope.subScopes[0])
 }

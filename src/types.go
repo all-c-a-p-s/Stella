@@ -2,21 +2,64 @@ package main
 
 import (
 	"fmt"
-	"strings"
 )
 
-type primitiveType int
+type (
+	primitiveType int
+	derivedTypes  int
+)
+
+type HasType interface {
+	Type() primitiveType
+}
 
 const (
-	String primitiveType = iota
-	Int
-	Bool
+	Int primitiveType = iota
 	Float
-	Void //only for functions
-	Invalid
+	Bool
+	Byte
+	String
 )
 
-func readType(dataType string, lineNum int) primitiveType { //reads data type from assignment
+const (
+	arrInt derivedTypes = iota
+	arrFloat
+	arrBool
+	arrByte
+	arrString
+
+	vecInt
+	vecFloat
+	vecBool
+	vecByte
+	vecString
+)
+
+func (p primitiveType) String() string {
+	switch p {
+	case Int:
+		return "int"
+	case Float:
+		return "float"
+	case Bool:
+		return "bool"
+	case Byte:
+		return "byte"
+	case String:
+		return "string"
+	default:
+		panic("Somehow a type not in the enum got passed into primitiveType.String()")
+	}
+}
+
+func numericType(T primitiveType) bool {
+	if T == Int || T == Float {
+		return true
+	}
+	return false
+}
+
+func readType(dataType string, lineNum int) primitiveType { // reads data type from assignment
 	switch dataType {
 	case "int":
 		return Int
@@ -24,10 +67,12 @@ func readType(dataType string, lineNum int) primitiveType { //reads data type fr
 		return Float
 	case "bool":
 		return Bool
+	case "byte":
+		return Byte
 	case "string":
 		return String
 	default:
-		panic(fmt.Sprintf("Line %d - data type %s is invalid", lineNum+1, dataType))
+		panic(fmt.Sprintf("Line %d: data type %s is invalid", lineNum+1, dataType))
 	}
 }
 
@@ -35,10 +80,26 @@ func getValType(value string, lineNum int) primitiveType {
 	if value[0] == '"' && value[len(value)-1] == '"' {
 		checkStringVal(value, lineNum)
 		return String
+	} else if value[0] == 39 && value[len(value)-1] == 39 { // single quotes
+		checkByteVal(value, lineNum)
+		return Byte
+		// integers 0-255 will be parsed as ints and then checked when assigning value
 	} else if value == "true" || value == "false" {
 		checkBoolVal(value, lineNum)
 		return Bool
 	} // else must be a number
+
+	foundNum := false
+
+	for i := 0; i < len(value); i++ {
+		if _, isNum := numbers()[string(value[i])]; isNum {
+			foundNum = true
+		}
+	}
+
+	if !foundNum {
+		panic(fmt.Sprintf("Line %d: unexpected token %s", lineNum+1, value))
+	}
 
 	for _, char := range value {
 		if char == '.' {
@@ -51,61 +112,242 @@ func getValType(value string, lineNum int) primitiveType {
 	return Int
 }
 
-func getType(expression string, lineNum int, currentScope *scope) primitiveType {
-	//first check if expression contains variable names
-	//variable names will be either their own word, or next to annotation characters
-	words := strings.Fields(expression)
-	var typesFound []primitiveType
-	for _, word := range words {
-		if variable, ok := (*currentScope).vars[removeSyntacticChars(word)]; ok { //hashmap lookup of variable names
-			typesFound = append(typesFound, variable.dataType)
-		} else if function, ok := (*currentScope).functions[removeSyntacticChars(word)]; ok { //function names
-			typesFound = append(typesFound, function.returnType)
-		} else { //not a variable or function name, so it must be a value/operator
-			if len(removeSyntacticChars(word)) != 0 && !(booleanOperator(word)) { //cannot be an operator
-				typesFound = append(typesFound, getValType(removeSyntacticChars(word), lineNum))
+// FIXME: previous/next term can be preceded by unary operator
+func nextTerm(expression []string, index int, lineNum int) []string { // helper functions for expressionType()
+	if index == len(expression)-1 {
+		panic(fmt.Sprintf("Line %d: expected another token in expression", lineNum+1))
+	}
+	bracketCount := 0
+	if expression[index+1] != "(" {
+		return []string{expression[index+1]}
+	}
+	for i := index + 1; i < len(expression); i++ {
+		switch expression[i] {
+		case "(":
+			bracketCount++
+		case ")":
+			bracketCount--
+		}
+		if bracketCount == 0 {
+			if i == len(expression)-1 {
+				return expression[index+1:]
+			}
+			return expression[index+1 : i+1]
+		}
+	}
+	panic(fmt.Sprintf("Line %d: brackets opened in expression but never closed", lineNum+1))
+}
+
+func previousTerm(expression []string, index int, lineNum int) []string {
+	if index == 0 {
+		panic("previousTerm() was called with no previous term somehow")
+	}
+	bracketCount := 0
+	if expression[index-1] != ")" {
+		return []string{expression[index-1]}
+	}
+	for i := index - 1; i >= 0; i-- {
+		switch expression[i] {
+		case "(":
+			bracketCount++
+		case ")":
+			bracketCount--
+		}
+		if bracketCount == 0 {
+			return expression[i:index]
+		}
+	}
+	panic(fmt.Sprintf("Line %d: brackets closed in expression but never opened", lineNum+1))
+}
+
+func nextOperator(expression []string, index int) (int, error) {
+	// returns index of next operator
+	bracketCount := 0
+	for i := index + 1; i < len(expression); i++ {
+		switch expression[i] {
+		case "(":
+			bracketCount++
+		case ")":
+			bracketCount--
+		}
+
+		if bracketCount == 0 {
+			_, ok1 := binaryOperators()[expression[i]]
+			_, ok2 := unaryOperators()[expression[i]]
+			if ok1 || ok2 {
+				return i, nil
 			}
 		}
 	}
-	for i := 1; i < len(typesFound); i++ { //checks that all types found are the same
-		if typesFound[i] != typesFound[0] {
-			panic(fmt.Sprintf("Line %d - Expression contains different types", lineNum+1))
+	return index, fmt.Errorf("found no next operator in expression")
+}
+
+func expressionType(expression []string, lineNum int, currentScope *scope) primitiveType {
+	// NOTE: does not currently support collections
+	// also does not support multi-line expressions
+
+	if len(expression) == 0 {
+		panic(fmt.Sprintf("Line %d: Expression is empty", lineNum+1))
+	}
+
+	expr := expression // copy made to remove brackets
+	if (expr[0] == "(" && expr[len(expr)-1] == ")") || (expr[0] == "{" && expr[len(expr)-1] == "}") {
+		var bracketCount int
+		var closedBeforeEnd bool
+
+		if len(expr) == 2 {
+			panic("Line %d: Expression is empty")
+		}
+		for i := 0; i < len(expression)-2; i++ { // stop before last index
+			switch expression[i] {
+			case "(", "{":
+				bracketCount++
+			case ")", "}":
+				bracketCount--
+			}
+			if bracketCount == 0 {
+				closedBeforeEnd = true
+				break
+			}
+		}
+		if !closedBeforeEnd { // i.e. last token was the closing bracket
+			expr = expr[1 : len(expr)-1]
 		}
 	}
 
-	if booleanExpression(expression) {
-		return Bool
+	if len(expr) == 1 {
+		_, ok1 := binaryOperators()[expr[0]]
+		_, ok2 := unaryOperators()[expr[0]]
+		if ok1 || ok2 {
+			panic(fmt.Sprintf("Line %d: Expression contains only operators and no values", lineNum+1))
+		}
+		if v, ok := (*currentScope).vars[expr[0]]; ok {
+			return v.dataType
+		} else if f, ok := (*currentScope).functions[expr[0]]; ok {
+			return f.returnType
+		}
+		return getValType(expr[0], lineNum) // not operator, variable or function
+	}
+	typesFound := make(map[primitiveType]struct{}) // Hashset of all types found in expression
+	previousOperatorIndex := -1                    // index in expression slice where last term ended.
+	// initialise as -1 for first function call
+	for {
+		operatorIndex, err := nextOperator(expr, previousOperatorIndex)
+		if err != nil { // no next operator in expression
+			break
+		}
+		previousOperatorIndex = operatorIndex
+		operator := expr[operatorIndex]
+		switch operator {
+		case "-":
+			if operatorIndex == 0 {
+				next := nextTerm(expr, operatorIndex, lineNum)
+				if !numericType(expressionType(next, lineNum, currentScope)) {
+					panic(fmt.Sprintf("Line %d: Unary operator '-' found before non numeric type", lineNum+1))
+				}
+				typesFound[expressionType(next, lineNum, currentScope)] = struct{}{}
+			} else {
+				_, ok1 := numericOperators()[expr[operatorIndex-1]]
+				_, ok2 := comparativeOperators()[expr[operatorIndex-1]]
+				if ok1 || ok2 { // after either numeric operator or comparative operator
+					next := nextTerm(expr, operatorIndex, lineNum)
+					if !numericType(expressionType(next, lineNum, currentScope)) {
+						panic(fmt.Sprintf("Line %d: Unary operator '-' found before non numeric type", lineNum+1))
+					}
+					typesFound[expressionType(next, lineNum, currentScope)] = struct{}{}
+				} else { // used as binary operator
+					previous := previousTerm(expr, operatorIndex, lineNum)
+					next := nextTerm(expr, operatorIndex, lineNum)
+					if !numericType(expressionType(previous, lineNum, currentScope)) || !numericType(expressionType(next, lineNum, currentScope)) {
+						panic(fmt.Sprintf("Line %d: binary opertor '-' used with non-numeric values", lineNum+1))
+					}
+					typesFound[expressionType(next, lineNum, currentScope)] = struct{}{}
+				}
+			}
+		case "!":
+			next := nextTerm(expr, operatorIndex, lineNum)
+			if expressionType(next, lineNum, currentScope) != Bool {
+				panic(fmt.Sprintf("Line %d: Unary operator '!' used before non-boolean value", lineNum+1))
+			}
+			typesFound[Bool] = struct{}{}
+		case "+", "*", "/": // TODO: make + also work for strings
+			previous := previousTerm(expr, operatorIndex, lineNum)
+			next := nextTerm(expr, operatorIndex, lineNum)
+			previousType := expressionType(previous, lineNum, currentScope)
+			nextType := expressionType(next, lineNum, currentScope)
+			if !numericType(previousType) {
+				panic(fmt.Sprintf("Line %d: binary operator '%s' used after non-numeric type %v", lineNum+1, expr[operatorIndex], previousType))
+			}
+			if !numericType(nextType) {
+				panic(fmt.Sprintf("Line %d: binary operator '%s' used before non-numeric type %v", lineNum+1, expr[operatorIndex], nextType))
+			}
+			if previousType != nextType {
+				panic(fmt.Sprintf("Lind %d: binary operator '%s' used with both integer and float values", lineNum+1, expr[operatorIndex]))
+			}
+			typesFound[nextType] = struct{}{}
+		case "||", "&&":
+			previous := previousTerm(expr, operatorIndex, lineNum)
+			next := nextTerm(expr, operatorIndex, lineNum)
+			previousType := expressionType(previous, lineNum, currentScope)
+			nextType := expressionType(next, lineNum, currentScope)
+			if previousType != Bool {
+				panic(fmt.Sprintf("Line %d: binary operator '%s' used after non-boolean type %v", lineNum+1, expr[operatorIndex], previousType))
+			}
+			if nextType != Bool {
+				panic(fmt.Sprintf("Line %d: binary operator '%s' used before non-boolean type %v", lineNum+1, expr[operatorIndex], nextType))
+			}
+			// now they must already be the same
+			typesFound[Bool] = struct{}{}
+		case "==", ">", "<", ">=", "<=", "!=":
+			previous := previousTerm(expr, operatorIndex, lineNum)
+			next := nextTerm(expr, operatorIndex, lineNum)
+			previousType := expressionType(previous, lineNum, currentScope)
+			nextType := expressionType(next, lineNum, currentScope)
+			if previousType != nextType {
+				panic(fmt.Sprintf("Line %d: Binary operator '%s' used with two different types %v and %v", lineNum+1, expr[operatorIndex], previousType, nextType))
+			}
+			typesFound[Bool] = struct{}{}
+		}
+	}
+	if len(typesFound) == 0 { // shouldn't even be possible to get this lol
+		panic(fmt.Sprintf("Line %d: expression has no data type", lineNum+1))
+	}
+	if len(typesFound) != 1 {
+		panic(fmt.Sprintf("Line %d: expression contains more than one data type", lineNum+1))
 	}
 
-	return typesFound[0] //all types in expression are the same, and the expression must have a type so this works
+	var exprType primitiveType
+	for k := range typesFound { // all types in expression are the same, and the expression must have a type so this works
+		exprType = k
+	}
+	return exprType
 }
 
-func checkIntVal(value string, lineNum int) { //checks to see if int value contains illegal characters/leading zeros etc.
+func checkIntVal(value string, lineNum int) { // checks to see if int value contains illegal characters/leading zeros etc.
 	switch value[0] {
 	case '0':
-		panic(fmt.Sprintf("Line %d - Integers values cannot have leading zeros", lineNum+1))
+		panic(fmt.Sprintf("Line %d: Integers values cannot have leading zeros", lineNum+1))
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 	default:
-		panic(fmt.Sprintf("Line %d - character %c cannot be part of an integer value", lineNum+1, value[0]))
+		panic(fmt.Sprintf("Line %d: character %c cannot be part of an integer value", lineNum+1, value[0]))
 	}
 
 	for _, char := range value {
-		if !(char > 47 && char < 58) { //digits including zero. leading zeros will have been caught above
-			panic(fmt.Sprintf("Line %d - character %c cannot be part of an integer value", lineNum+1, char))
+		if !(char > 47 && char < 58) { // digits including zero. leading zeros will have been caught above
+			panic(fmt.Sprintf("Line %d: character %c cannot be part of an integer value", lineNum+1, char))
 		}
 	}
-
 }
 
 func checkFloatVal(value string, lineNum int) {
 	switch value[0] {
 	case '0':
 		if !(value[1] == '.') {
-			panic(fmt.Sprintf("Line %d - Leading zeros must be followed by decimal point, here it is followed by %c", lineNum+1, value[1]))
+			panic(fmt.Sprintf("Line %d: Leading zeros must be followed by decimal point, here it is followed by %c", lineNum+1, value[1]))
 		}
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 	default:
-		panic(fmt.Sprintf("Line %d - character %c cannot be part of an float value", lineNum+1, value[0]))
+		panic(fmt.Sprintf("Line %d: character %c cannot be part of an float value", lineNum+1, value[0]))
 	}
 
 	decimalPointCount := 0
@@ -113,9 +355,9 @@ func checkFloatVal(value string, lineNum int) {
 		if char == '.' {
 			decimalPointCount++
 		}
-		if !(char > 47 && char < 58) { //digits including zero. leading zeros will have been caught above
-			if !(char == '.' && decimalPointCount == 0) {
-				panic(fmt.Sprintf("Line %d - character %c cannot be part of an integer value", lineNum+1, char))
+		if !(char > 47 && char < 58) { // digits including zero. leading zeros will have been caught above
+			if !(char == '.' && decimalPointCount == 1) {
+				panic(fmt.Sprintf("Line %d: character %c cannot be part of a float value", lineNum+1, char))
 			}
 		}
 	}
@@ -123,12 +365,22 @@ func checkFloatVal(value string, lineNum int) {
 
 func checkBoolVal(value string, lineNum int) {
 	if !(value == "true" || value == "false") {
-		panic(fmt.Sprintf("Line %d - value '%s' cannot be used as a boolean value", lineNum+1, value))
+		panic(fmt.Sprintf("Line %d: value '%s' cannot be used as a boolean value", lineNum+1, value))
+	}
+}
+
+func checkByteVal(value string, lineNum int) {
+	if len(value) != 3 {
+		panic(fmt.Sprintf("Line %d: single quotes are should be used to enclose single ASCII character, but here there is more than one character inside the quotes", lineNum+1))
+	}
+	byteVal := []byte(value[1 : len(value)-1])[0]
+	if byteVal > 255 {
+		panic(fmt.Sprintf("Line %d: value '%s' cannot be used as byte because its ASCII code is over 255", lineNum+1, byteVal))
 	}
 }
 
 func checkStringVal(value string, lineNum int) {
 	if !(value[0] == '"' && value[len(value)-1] == '"') {
-		panic(fmt.Sprintf("Line %d - '%s' cannot be used as string value", lineNum+1, value))
+		panic(fmt.Sprintf("Line %d: '%s' cannot be used as string value", lineNum+1, value))
 	}
 }
