@@ -11,7 +11,7 @@ type scope struct {
 	end       int // 0-indexed, exclusive
 	subScopes []*scope
 	parent    *scope
-	vars      map[string]variable
+	vars      map[string]Variable
 	functions map[string]function
 	arrs      map[string]array
 	selection []selectionStatement
@@ -90,7 +90,7 @@ func findBracketEnd(bracketType byte, lines []string, lineNum int, charIndex int
 }
 
 func readScope(lines []string, begin, end int, currentScope *scope) {
-	readVariables(lines, currentScope)
+	// readVariables(lines, currentScope)
 	readFunctions(lines, currentScope)
 	readSelection(lines, currentScope)
 	readIteration(lines, currentScope)
@@ -117,7 +117,7 @@ func readScope(lines []string, begin, end int, currentScope *scope) {
 						end:       scopeEnd,
 						subScopes: []*scope{},
 						parent:    currentScope,
-						vars:      map[string]variable{},
+						vars:      map[string]Variable{},
 					}
 
 					(*currentScope).subScopes = append((*currentScope).subScopes, &subScope)
@@ -154,10 +154,12 @@ func main() {
 		end:       len(lines),
 		subScopes: []*scope{},
 		parent:    nil,
-		vars:      map[string]variable{},
+		vars:      map[string]Variable{},
 	}
-	expr := parseExpression("((5+2-3) >= ((3+45) + 3)) && (5 == 4)", 0, &globalScope)
-	fmt.Println(expressionType(expr, 0, &globalScope))
+
+	var fn string = "fn square(x: int) -> int = { \n 5 * 5 \n }"
+	lns := []string{fn}
+	fmt.Println(parseFunction(lns, 0, &globalScope))
 	// readScope(lines, 0, len(lines), &globalScope)
 	// fmt.Println("Compiled successfully")
 	// fmt.Println(globalScope.subScopes[0])

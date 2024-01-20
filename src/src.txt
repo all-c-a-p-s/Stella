@@ -10,3 +10,7 @@ if name == "seba" {
 } else {
   print("hi");
 }
+
+fn square(x: int) -> int = {
+  x*x
+}
