@@ -34,24 +34,35 @@ type Operator struct {
 	operator string
 }
 
+type IfStatement struct {
+	statements []SelectionStatement
+}
+
 type SelectionStatement struct {
-	previous      *selectionStatement
-	condition     string // boolean expression
+	previous      *SelectionStatement
+	condition     Expression // boolean expression
 	selectionType selectionType
 }
 
-type ExpressionItem struct {
-	stringValue string
-	itemType    itemType
-}
-
 type Function struct {
-	parameters map[string]variable // use map to include variable name. This should be useful to translate to readable Go
+	parameters []Variable
 	returnType primitiveType
 }
 
 type Expression struct {
-	items    []ExpressionItem
+	items    []string
+	dataType primitiveType
+}
+
+type Assignment struct {
+	v Variable
+	e Expression
+}
+
+type Iterator[T int64 | float64] struct {
+	start    T
+	step     T
+	end      T
 	dataType primitiveType
 }
 
@@ -114,11 +125,10 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *scope) Var
 	}
 
 	expression := line[equalsCharIndex+1:]
-	parsed := parseExpression(expression, lineNum, currentScope)
-	exprType := expressionType(parsed, lineNum, currentScope)
+	exprFound := parseExpression(expression, lineNum, currentScope)
 
-	if exprType != expectedType {
-		panic(fmt.Sprintf("Line %d: expected type %s because of type annotation, found type %s", lineNum, expectedType.String(), exprType.String()))
+	if exprFound.dataType != expectedType {
+		panic(fmt.Sprintf("Line %d: expected type %s because of type annotation, found type %s", lineNum, expectedType.String(), exprFound.dataType.String()))
 	}
 
 	return Variable{
@@ -128,7 +138,7 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *scope) Var
 	}
 }
 
-func parseExpression(expression string, lineNum int, currentScope *scope) []string {
+func parseExpression(expression string, lineNum int, currentScope *scope) Expression {
 	var parsed []string
 	var currentItem string
 	var bracketCount int
@@ -236,7 +246,8 @@ func parseExpression(expression string, lineNum int, currentScope *scope) []stri
 			checkValue(token, previous, next, lineNum, currentScope)
 		}
 	}
-	return parsed
+	T := expressionType(parsed, lineNum, currentScope)
+	return Expression{parsed, T}
 }
 
 func checkValue(value, previous, next string, lineNum int, currentScope *scope) {
@@ -298,25 +309,357 @@ func checkBinaryOperator(operator, previous, next string, lineNum int, currentSc
 	checkValue(next, operator, "", lineNum, currentScope)     // as above
 }
 
-// patterns an expression can match:
-// expression BINARY OPERATOR expression
-// UNARY OPERATOR expression
-// ( expression )
-// { expression }
+func checkBrackets(bracket, previous, next string, lineNum int) {
+	switch bracket {
+	case "(", "{":
+		switch previous {
+		case ")", "}":
+			panic(fmt.Sprintf("Line %d: invalid token %s found before bracket %s", lineNum+1, bracket, previous))
+		}
+		switch next {
+		case ")", "}":
+			panic(fmt.Sprintf("Line %d: invalid token %s found after bracket %s", lineNum+1, bracket, next))
+		}
+	case ")", "}":
+		switch previous {
+		case "(", "{":
+			panic(fmt.Sprintf("Line %d: invalid token %s found before bracket %s", lineNum+1, bracket, previous))
+		}
+		switch next {
+		case ")", "}":
+			panic(fmt.Sprintf("Line %d: invalid token %s found after bracket %s", lineNum+1, bracket, next))
+		}
+	default:
+		panic("checkBrackets() function somehow called without a bracket lmao")
 
-// patterns expression values can match
-// function call
-// variable
-// UNARY OPERATOR variable
-// integer/float literal
-// string literal
-// bool literal
-// byte literal
+	}
+}
 
-// patters unary operator can match:
-// BINARY OPERATOR UNARY OPERATOR value
-// UNARY OPERATOR value
+func isStatement(line string) bool {
+	// doesn't need to check if statements are syntactically valis
+	// just determines whether ot not they are statements
+	words := strings.Fields(line)
+	if len(words) == 0 {
+		return true
+	}
+	switch words[0] {
+	case "if", "else", "loop", "let":
+		return true
+	}
+	assignment := false
+	stringCount := 0
+	for i := 0; i < len(line); i++ {
+		if line[i] == '"' {
+			if stringCount == 0 {
+				stringCount++
+			} else {
+				stringCount--
+			}
+		}
 
-// if none of the above, panic("unexpected token")
+		if line[i] == '=' && stringCount == 0 { // not inside string literal
+			assignment = true
+		}
+	}
+	return assignment
+}
 
-// func parseFuctionDeclaration(lines []string, lineNum int)
+func parseMultiLineExpression(expression string, lineNum int, currentScope *scope) Expression {
+	// TODO: multi-line expressions inside multi-line expressions (maybe)
+	// NOTE: should be called not including brackets at beginning/end
+	lines := strings.Split(expression, "\n")
+	bracketCount := 0
+	exprCount := 0
+	var expr string
+	for num, line := range lines {
+		for i := 0; i < len(line); i++ {
+			if line[i] == '{' {
+				bracketCount++
+			} else if line[i] == '}' {
+				bracketCount--
+			}
+		}
+		if bracketCount != 0 {
+			continue
+		}
+		if exprCount > 1 {
+			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", lineNum+num+1))
+		}
+		if isStatement(line) {
+			continue
+		}
+		expr = line
+		exprCount++
+	}
+	return parseExpression(expr, lineNum, currentScope)
+}
+
+func parseParameters(params string, lineNum int) []Variable {
+	fields := strings.Split(params, ",")
+	// will remove the commas
+	var variables []Variable
+	for _, param := range fields {
+		words := strings.Fields(param)
+		if len(words) != 2 {
+			panic(fmt.Sprintf("Line %d: invalid element in list of parameters", lineNum+1))
+		}
+
+		if words[0][len(words[0])-1] != ':' {
+			panic(fmt.Sprintf("Line %d: the last character of the parameter declaration %s is not a colon ':', which is required for a type annotation of the parameter", lineNum+1, words[0]))
+		}
+		ident := parseIdentifier(words[0], lineNum)
+		T := readType(words[1], lineNum)
+		newP := Variable{
+			identifier: ident,
+			dataType:   T,
+			mut:        false,
+		}
+		variables = append(variables, newP)
+
+	}
+	return variables
+}
+
+func parseFunction(lines []string, lineNum int, currentScope *scope) Function {
+	var allLines string
+	for _, l := range lines {
+		allLines += l
+		allLines += "\n"
+	}
+
+	line := lines[lineNum]
+	// var returnType primitiveType
+	words := strings.Fields(line)
+	if words[0] != "fn" {
+		panic("parseFunction() somehow called without fn keyword")
+	}
+
+	identEnd := 0
+
+	var paramsBytes []byte
+	bracketCount := 0
+	for i := 0; i < len(line); i++ {
+		done := false
+		switch line[i] {
+		case '(':
+			bracketCount++
+		case ')':
+			bracketCount--
+			if bracketCount == 0 {
+				done = true
+				identEnd = i
+			}
+		}
+		if bracketCount == 1 || done {
+			paramsBytes = append(paramsBytes, line[i])
+		}
+		if done {
+			break
+		}
+	}
+
+	if identEnd == len(line) {
+		panic(fmt.Sprintf("Line %d: expected return type annotation after function identifier", lineNum+1))
+	}
+
+	pStr := string(paramsBytes[1 : len(paramsBytes)-1])
+	parameters := parseParameters(pStr, lineNum)
+
+	afterIdent := line[identEnd+1:]
+	afterWords := strings.Fields(afterIdent)
+
+	if len(afterWords) < 3 {
+		panic(fmt.Sprintf("Line %d: Expected return type annotation '->' and equals sign '=' after function indentifier", lineNum+1))
+	}
+
+	if afterWords[0] != "->" {
+		panic(fmt.Sprintf("Line %d: expected return type annotation with '->'", lineNum+1))
+	}
+
+	returnType := readType(afterWords[1], lineNum)
+
+	if afterWords[2] != "=" {
+		panic(fmt.Sprintf("Line %d: expected equals sign '=' after return type annotation ->", lineNum+1))
+	}
+
+	exprStart := 0
+	for i := 0; i < len(afterIdent); i++ {
+		if afterIdent[i] == '=' {
+			exprStart = identEnd + i + 2
+		}
+	}
+
+	if exprStart == len(allLines) || exprStart == 0 {
+		panic(fmt.Sprintf("Line %d: found no returned expression from function", lineNum+1))
+	}
+
+	expr := allLines[exprStart:]
+
+	for i := 0; i < len(expr); i++ {
+		if expr[i] == ' ' {
+			continue
+		} else {
+			if expr[i] == '{' {
+				bracketCount := 0
+				bracketEnd := -1
+				for j := i; j < len(expr); j++ {
+					switch expr[j] {
+					case '{':
+						bracketCount++
+					case '}':
+						bracketCount--
+					}
+					if bracketCount == 0 {
+						bracketEnd = j
+					}
+				}
+				if bracketEnd == -1 || i == len(expr) {
+					panic(fmt.Sprintf("Line %d: brackets in expression in function return never closed", lineNum+1))
+				}
+				expr = expr[i+1 : bracketEnd]
+			}
+			break
+		}
+	}
+
+	expression := parseMultiLineExpression(expr, lineNum, currentScope)
+	if expression.dataType != returnType {
+		panic(fmt.Sprintf("Line %d: expected return type %v but found return type %v", lineNum+1, returnType, expression.dataType))
+	}
+
+	return Function{
+		parameters: parameters,
+		returnType: returnType,
+	}
+}
+
+func parseIfStatement(lineNum int, lines []string, currentScope *scope) IfStatement {
+	first := parseSelection(lineNum, lines, currentScope, nil)
+	parent := &first
+
+	statements := []SelectionStatement{first}
+
+	for i := lineNum; i < len(lines); i++ {
+		words := strings.Fields(lines[i])
+		if len(words) == 0 {
+			continue
+		}
+		if words[0] == "}" {
+			if len(words) == 1 {
+				break
+			}
+			if words[1] == "else" {
+				next := parseSelection(lineNum, lines, currentScope, parent)
+				parent = &next
+
+				statements = append(statements, next)
+			} else {
+				panic(fmt.Sprintf("Line %d: expected either else or else if on same line as previous selection statement closed", lineNum+1))
+			}
+		}
+	}
+
+	return IfStatement{
+		statements: statements,
+	}
+}
+
+func parseSelection(lineNum int, lines []string, currentScope *scope, previous *SelectionStatement) SelectionStatement {
+	line := lines[lineNum]
+	words := strings.Fields(line)
+	var T selectionType
+	switch words[0] {
+	case "if":
+		T = If
+	case "}": // opened on same line where previous selection statement closed
+		if words[1] != "else" {
+			panic(fmt.Sprintf("Line %d: expected else or else if after closed selection statement", lineNum+1))
+		}
+		if previous == nil {
+			panic(fmt.Sprintf("Line %d: found else/else if statement without previous if statement", lineNum+1))
+		}
+		if len(words) == 2 {
+			panic(fmt.Sprintf("Line %d: expected condition after keyword else", lineNum+1))
+		}
+		if words[2] == "if" {
+			T = ElseIf
+		} else {
+			T = Else
+		}
+	default:
+		panic("parseSelection() somehow called without if keyword or }")
+	}
+
+	if len(line) == 2 {
+		panic(fmt.Sprintf("Line %d: if statement with no condition", lineNum+1))
+	}
+
+	exprEnd := 0
+
+	for i := len(line) - 1; i > 0; i-- {
+		if line[i] == '{' {
+			exprEnd = i
+		}
+	}
+
+	expr := line[2:exprEnd]
+	condition := parseExpression(expr, lineNum, currentScope)
+
+	if condition.dataType != Bool {
+		panic(fmt.Sprintf("Line %d: if statement found with non-boolean condition", lineNum+1))
+	}
+
+	return SelectionStatement{
+		previous:      previous,
+		selectionType: T,
+		condition:     condition,
+	}
+}
+
+func parseAssignment(lines []string, lineNum int, currentScope *scope) Assignment {
+	line := lines[lineNum]
+	words := strings.Fields(line)
+
+	if len(words) < 3 {
+		panic(fmt.Sprintf("Line %d: invalid addignment", lineNum+1))
+	}
+
+	v, ok := (currentScope).vars[words[0]]
+
+	if !ok {
+		panic(fmt.Sprintf("Line %d: first token of assignment does not match any variables in current scope", lineNum+1))
+	} else {
+		if !v.mut {
+			panic(fmt.Sprintf("Line %d: attempt to assign new value to immutable variable %s", lineNum+1, v.identifier))
+		}
+	}
+
+	if words[1] != "=" {
+		panic(fmt.Sprintf("Line %d: invalid assignment: equals sign must come directly after variable", lineNum+1))
+	}
+
+	var exprStart int
+
+	for i := 0; i < len(line); i++ {
+		if line[i] == '=' {
+			exprStart = i
+			break
+		}
+	}
+
+	if exprStart == 0 || exprStart == len(line)-1 {
+		panic(fmt.Sprintf("Line %d: found no expression in assignment to variable %s", lineNum+1, v.identifier))
+	}
+
+	expr := line[exprStart:]
+	expression := parseExpression(expr, lineNum, currentScope)
+
+	if expression.dataType != v.dataType {
+		panic(fmt.Sprintf("Line %d: cannot assign epression of type %v to variable of type %v", lineNum+1, expression.dataType, v.dataType))
+	}
+
+	return Assignment{
+		v: v,
+		e: expression,
+	}
+}

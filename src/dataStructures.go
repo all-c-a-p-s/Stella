@@ -182,6 +182,7 @@ func readVariable(lines []string, lineNum int) (newVariable variable) {
 	return newVariable
 }
 
+/**
 func readVariables(lines []string, scope *scope) {
 	scopeCount := 0 // used to keep track of scopes opened/closed
 	for lineNum, line := range lines[(*scope).begin:(*scope).end] {
@@ -200,6 +201,7 @@ func readVariables(lines []string, scope *scope) {
 		}
 	}
 }
+*/
 
 func readFunction(lines []string, lineNum int) (newFunction function) { // should only be called on a line once the func keyword has already been read
 	var returnType primitiveType
@@ -649,6 +651,7 @@ func readArrays(lines []string, scope *scope) {
 	}
 }
 
+/**
 func readAssignment(lines []string, lineNum int, currentScope *scope) {
 	line := lines[lineNum]
 	name := strings.Fields(line)[0]
@@ -661,3 +664,4 @@ func readAssignment(lines []string, lineNum int, currentScope *scope) {
 		panic(fmt.Sprintf("Line %d: variable name %s does not exist", lineNum+1, name))
 	}
 }
+*/
