@@ -24,9 +24,14 @@ type Variable struct {
 	mut        bool
 }
 
+type Declaration struct {
+	v Variable
+	e Expression
+}
+
 type FunctionCall struct {
 	functionName string
-	parameters   []Variable
+	parameters   []Expression
 }
 
 type Operator struct {
@@ -45,6 +50,7 @@ type SelectionStatement struct {
 }
 
 type Function struct {
+	identifier string
 	parameters []Variable
 	returnType primitiveType
 }
@@ -91,7 +97,7 @@ func parseIdentifier(id string, lineNum int) string {
 	return id[:len(id)-1] // identifier without colon
 }
 
-func parseVariableDeclaration(line string, lineNum int, currentScope *scope) Variable {
+func parseVariableDeclaration(line string, lineNum int, currentScope *scope) Declaration {
 	// will be called after we are sure it is a variable that is being assigned
 	var mut bool
 	words := strings.Fields(line)
@@ -108,8 +114,6 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *scope) Var
 	equalsIndex := typeIndex + 1     //"=" must come after type
 
 	id := parseIdentifier(words[identifierIndex], lineNum)
-	typeIndex = int(readType(words[typeIndex], lineNum))
-
 	expectedType := readType(words[typeIndex], lineNum)
 
 	if words[equalsIndex] != "=" {
@@ -131,10 +135,15 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *scope) Var
 		panic(fmt.Sprintf("Line %d: expected type %s because of type annotation, found type %s", lineNum, expectedType.String(), exprFound.dataType.String()))
 	}
 
-	return Variable{
+	v := Variable{
 		identifier: id,
 		dataType:   expectedType,
 		mut:        mut,
+	}
+
+	return Declaration{
+		v: v,
+		e: exprFound,
 	}
 }
 
@@ -146,9 +155,28 @@ func parseExpression(expression string, lineNum int, currentScope *scope) Expres
 	for i := 0; i < len(expression); i++ {
 		switch expression[i] { // split on operators and spaces
 		case '(', '{':
-			// TODO: check if currentItem is the name of a function
-			if currentItem != "" {
+			if len(currentItem) != 0 { // parse it as function call, error will arise in parseFunctionCall() if there is one
+				// if currentItem is not empty it must be a function name
+				fnBracketCount := 0
+				for j := i; j < len(expression); j++ {
+					currentItem += string(expression[j])
+					switch expression[j] {
+					case '(':
+						fnBracketCount++
+					case ')':
+						fnBracketCount--
+					}
+					if fnBracketCount == 0 {
+						i = j
+						break
+					}
+				}
+				if fnBracketCount != 0 {
+					panic(fmt.Sprintf("Line %d: bracket opened but never closed", lineNum+1))
+				}
+				fmt.Println(currentItem)
 				parsed = append(parsed, currentItem)
+				continue
 			}
 			bracketCount++
 			currentItem = ""
@@ -209,7 +237,6 @@ func parseExpression(expression string, lineNum int, currentScope *scope) Expres
 		default:
 			currentItem += string(expression[i])
 			if i == len(expression)-1 {
-				currentItem += string(expression[i])
 				parsed = append(parsed, currentItem)
 			}
 		}
@@ -255,12 +282,20 @@ func checkValue(value, previous, next string, lineNum int, currentScope *scope) 
 	if value == "" { // possible that empty string gets passed from checkBinaryOperator() or checkUnaryOperator()
 		panic(fmt.Sprintf("Line %d: Expected value before operator", lineNum+1))
 	}
-	identifier := true
-	if _, ok := currentScope.vars[value]; !ok {
-		if _, ok := currentScope.functions[value]; !ok {
-			// TODO: fix this so that it actually fucking works lol
-			identifier = false
+
+	identifier := false
+
+	for i := 0; i < len(value); i++ {
+		if value[i] == '(' {
+			fnCall := parseFunctionCall(value, lineNum, currentScope)
+			if _, ok := currentScope.functions[fnCall.functionName]; ok {
+				identifier = true
+			}
 		}
+	}
+
+	if _, ok := currentScope.vars[value]; ok {
+		identifier = true
 	}
 	if !identifier {
 		getValType(value, lineNum) // only used so this can panic in case of invalid token
@@ -297,7 +332,6 @@ func checkUnaryOperator(operator, previous, next string, lineNum int, currentSco
 	checkValue(next, operator, "", lineNum, currentScope) // doesn't matter in this case what next actually is
 }
 
-// TODO: probably need a function to check brackets
 func checkBinaryOperator(operator, previous, next string, lineNum int, currentScope *scope) {
 	if previous == "(" || previous == ")" || previous == "{" || previous == "}" {
 		return
@@ -436,6 +470,16 @@ func parseFunction(lines []string, lineNum int, currentScope *scope) Function {
 
 	identEnd := 0
 
+	var id []byte
+	for i := 0; i < len(words[1]); i++ {
+		if words[1][i] == '(' {
+			break
+		}
+		id = append(id, words[1][i])
+	}
+
+	identifier := parseIdentifier(string(id)+":", lineNum)
+
 	var paramsBytes []byte
 	bracketCount := 0
 	for i := 0; i < len(line); i++ {
@@ -530,6 +574,88 @@ func parseFunction(lines []string, lineNum int, currentScope *scope) Function {
 	return Function{
 		parameters: parameters,
 		returnType: returnType,
+		identifier: identifier,
+	}
+}
+
+func parseFunctionCall(functionCall string, lineNum int, currentScope *scope) FunctionCall {
+	var ident, params string
+
+	bracketCount := 0
+
+	id := true
+	for i := 0; i < len(functionCall); i++ {
+		switch functionCall[i] {
+		case '(':
+			id = false
+			bracketCount++
+		case ')':
+			bracketCount--
+		}
+		if id {
+			ident += string(functionCall[i])
+		} else {
+			params += string(functionCall[i])
+		}
+	}
+
+	if bracketCount != 0 {
+		panic(fmt.Sprintf("Line %d: brackets opened but never closed", lineNum+1))
+	}
+
+	fn, ok := currentScope.functions[ident]
+
+	if !ok {
+		panic(fmt.Sprintf("Line %d: function %s not in scope", lineNum+1, ident+"()"))
+	}
+
+	if len(params) > 2 { // remove brackets in case of function with more than zero parameters
+		params = params[1 : len(params)-1]
+	}
+
+	bracketCount = 0
+	var parameterExprs []string
+	var currentParam string
+
+	for i := 0; i < len(params); i++ {
+		switch params[i] {
+		case '(':
+			bracketCount++
+		case ')':
+			bracketCount--
+		case ',':
+			if bracketCount == 0 {
+				parameterExprs = append(parameterExprs, currentParam)
+				currentParam = ""
+			}
+		case ' ':
+			continue
+		}
+		currentParam += string(params[i])
+
+		if bracketCount == 0 {
+			parameterExprs = append(parameterExprs, currentParam)
+			break
+		}
+	}
+
+	if len(parameterExprs) != len(fn.parameters) {
+		panic(fmt.Sprintf("Line %d: function %s takes %d arguments but %d were given", lineNum+1, fn.identifier, len(fn.parameters), len(parameterExprs)))
+	}
+
+	var parameterExpressions []Expression
+
+	for i := 0; i < len(parameterExprs); i++ {
+		expression := parseExpression(parameterExprs[i], lineNum, currentScope)
+		if expression.dataType != fn.parameters[i].dataType {
+			panic(fmt.Sprintf("Line %d: cannot use expression of type %v as argument of type %v", lineNum+1, expression.dataType.String(), fn.parameters[i].dataType.String()))
+		}
+		parameterExpressions = append(parameterExpressions, expression)
+	}
+
+	return FunctionCall{
+		functionName: ident,
+		parameters:   parameterExpressions,
 	}
 }
 

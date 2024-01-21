@@ -112,13 +112,15 @@ func getValType(value string, lineNum int) primitiveType {
 	return Int
 }
 
-// FIXME: previous/next term can be preceded by unary operator
 func nextTerm(expression []string, index int, lineNum int) []string { // helper functions for expressionType()
 	if index == len(expression)-1 {
 		panic(fmt.Sprintf("Line %d: expected another token in expression", lineNum+1))
 	}
 	bracketCount := 0
 	if expression[index+1] != "(" {
+		if _, ok := unaryOperators()[expression[index+1]]; ok {
+			return nextTerm(expression, index+1, lineNum)
+		}
 		return []string{expression[index+1]}
 	}
 	for i := index + 1; i < len(expression); i++ {
@@ -182,6 +184,7 @@ func nextOperator(expression []string, index int) (int, error) {
 	return index, fmt.Errorf("found no next operator in expression")
 }
 
+// FIXME: get this to work with function calls
 func expressionType(expression []string, lineNum int, currentScope *scope) primitiveType {
 	// NOTE: does not currently support collections
 	// also does not support multi-line expressions
@@ -216,15 +219,23 @@ func expressionType(expression []string, lineNum int, currentScope *scope) primi
 	}
 
 	if len(expr) == 1 {
+		// recursive base case
 		_, ok1 := binaryOperators()[expr[0]]
 		_, ok2 := unaryOperators()[expr[0]]
 		if ok1 || ok2 {
 			panic(fmt.Sprintf("Line %d: Expression contains only operators and no values", lineNum+1))
 		}
+
+		for i := 0; i < len(expr[0]); i++ {
+			if expr[0][i] == '(' {
+				fnCall := parseFunctionCall(expr[0], lineNum, currentScope)
+				fn := currentScope.functions[fnCall.functionName]
+				return fn.returnType
+			}
+		}
+
 		if v, ok := (*currentScope).vars[expr[0]]; ok {
 			return v.dataType
-		} else if f, ok := (*currentScope).functions[expr[0]]; ok {
-			return f.returnType
 		}
 		return getValType(expr[0], lineNum) // not operator, variable or function
 	}
@@ -375,7 +386,7 @@ func checkByteVal(value string, lineNum int) {
 	}
 	byteVal := []byte(value[1 : len(value)-1])[0]
 	if byteVal > 255 {
-		panic(fmt.Sprintf("Line %d: value '%s' cannot be used as byte because its ASCII code is over 255", lineNum+1, byteVal))
+		panic(fmt.Sprintf("Line %d: value '%s' cannot be used as byte because its ASCII code is over 255", lineNum+1, string(byteVal)))
 	}
 }
 

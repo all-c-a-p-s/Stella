@@ -12,7 +12,7 @@ type scope struct {
 	subScopes []*scope
 	parent    *scope
 	vars      map[string]Variable
-	functions map[string]function
+	functions map[string]Function
 	arrs      map[string]array
 	selection []selectionStatement
 	iteration []forLoop
@@ -155,11 +155,16 @@ func main() {
 		subScopes: []*scope{},
 		parent:    nil,
 		vars:      map[string]Variable{},
+		functions: map[string]Function{},
 	}
 
-	var fn string = "fn square(x: int) -> int = { \n 5 * 5 \n }"
+	var fn string = "fn square(x: int) -> int = 5 * 5"
 	lns := []string{fn}
-	fmt.Println(parseFunction(lns, 0, &globalScope))
+	function := parseFunction(lns, 0, &globalScope)
+	globalScope.functions[function.identifier] = function
+	expr := "square(5)"
+	fmt.Println(parseExpression(expr, 0, &globalScope))
+	fmt.Println(function.transpile())
 	// readScope(lines, 0, len(lines), &globalScope)
 	// fmt.Println("Compiled successfully")
 	// fmt.Println(globalScope.subScopes[0])

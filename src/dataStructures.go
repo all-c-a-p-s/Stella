@@ -238,7 +238,7 @@ func readFunctions(lines []string, scope *scope) {
 		}
 		for _, word := range words {
 			if word == "func" && scopeCount == 0 { // only read variables local to the current scope, not its subscopes
-				(*scope).functions[readName(lines, lineNum)] = readFunction(lines, lineNum)
+				(*scope).functions[readName(lines, lineNum)] = parseFunction(lines, lineNum, scope)
 			}
 		}
 	}
