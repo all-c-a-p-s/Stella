@@ -765,6 +765,22 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope, previous *
 		panic(fmt.Sprintf("Line %d: if statement with no condition", lineNum+1))
 	}
 
+	exprStart := 0
+	var currentWord string
+
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case ' ':
+			currentWord = ""
+		default:
+			currentWord += string(line[i])
+		}
+
+		if currentWord == "if" || currentWord == "else" {
+			exprStart = i + 1
+		}
+	}
+
 	exprEnd := 0
 
 	for i := len(line) - 1; i > 0; i-- {
@@ -773,7 +789,7 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope, previous *
 		}
 	}
 
-	expr := line[2:exprEnd]
+	expr := line[exprStart:exprEnd]
 	condition := parseExpression(expr, lineNum, currentScope)
 
 	if condition.dataType != Bool {

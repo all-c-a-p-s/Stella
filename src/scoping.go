@@ -105,6 +105,7 @@ func main() {
 
 	scanner := bufio.NewScanner(src) // used to avoid OS-specific problems such as Windows using "\r\n" for newline rather than just "\n"
 
+	// fmt.Println(parseExpression("1 == 1", 0, &Scope{}).dataType)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
