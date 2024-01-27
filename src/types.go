@@ -185,7 +185,7 @@ func nextOperator(expression []string, index int) (int, error) {
 }
 
 // FIXME: get this to work with function calls
-func expressionType(expression []string, lineNum int, currentScope *scope) primitiveType {
+func expressionType(expression []string, lineNum int, currentScope *Scope) primitiveType {
 	// NOTE: does not currently support collections
 	// also does not support multi-line expressions
 

@@ -6,17 +6,19 @@ import (
 	"os"
 )
 
-type scope struct {
-	begin     int // 0-indexed, inclusive
-	end       int // 0-indexed, exclusive
-	subScopes []*scope
-	parent    *scope
+type ScopeType int
+
+const (
+	FunctionScope ScopeType = iota
+	SelectionScope
+	Global
+)
+
+type Scope struct {
 	vars      map[string]Variable
 	functions map[string]Function
-	arrs      map[string]array
-	selection []selectionStatement
-	iteration []forLoop
-	loops     []infiniteLoop
+	items     []Transpileable
+	scopeType ScopeType
 }
 
 type Location struct {
@@ -89,48 +91,6 @@ func findBracketEnd(bracketType byte, lines []string, lineNum int, charIndex int
 	panic(fmt.Sprintf("Line %d: bracket %s opened but never closed", lineNum+1, string(bracketType)))
 }
 
-func readScope(lines []string, begin, end int, currentScope *scope) {
-	// readVariables(lines, currentScope)
-	readFunctions(lines, currentScope)
-	readSelection(lines, currentScope)
-	readIteration(lines, currentScope)
-	readInfiniteLoops(lines, currentScope)
-
-	scopeCount := 0 // keeps track of scopes opened/scopes closed. Count of 2 will indicate a new subscope being opened
-
-	if (*currentScope).parent == nil { // global scope
-		scopeCount++ // incremented because the global scope is the only scope where a bracket is not used to open the scope
-	}
-
-	for lineNum, line := range lines[begin:end] {
-		for i := 0; i < len(line); i++ {
-			if line[i] == '{' {
-				scopeCount++
-
-				if scopeCount == 2 { // only execute on lines where a scope is actually opened
-					scopeBeginning := begin + lineNum
-					scopeEnd := findScopeEnd(lines, scopeBeginning) // lines[lineNum:] because the slice of the function parameter is passed
-					// to findScopeEnd, so we need the relative position
-
-					subScope := scope{
-						begin:     scopeBeginning,
-						end:       scopeEnd,
-						subScopes: []*scope{},
-						parent:    currentScope,
-						vars:      map[string]Variable{},
-					}
-
-					(*currentScope).subScopes = append((*currentScope).subScopes, &subScope)
-					readScope(lines, scopeBeginning, scopeEnd, &subScope)
-				}
-
-			} else if line[i] == '}' {
-				scopeCount--
-			}
-		}
-	}
-}
-
 func main() {
 	src, err := os.Open("src.txt")
 	check(err)
@@ -149,23 +109,6 @@ func main() {
 		lines = append(lines, scanner.Text())
 	}
 
-	globalScope := scope{ // where globalScope is the entire file
-		begin:     0,
-		end:       len(lines),
-		subScopes: []*scope{},
-		parent:    nil,
-		vars:      map[string]Variable{},
-		functions: map[string]Function{},
-	}
-
-	var fn string = "fn square(x: int) -> int = 5 * 5"
-	lns := []string{fn}
-	function := parseFunction(lns, 0, &globalScope)
-	globalScope.functions[function.identifier] = function
-	expr := "square(5)"
-	fmt.Println(parseExpression(expr, 0, &globalScope))
-	fmt.Println(function.transpile())
-	// readScope(lines, 0, len(lines), &globalScope)
-	// fmt.Println("Compiled successfully")
-	// fmt.Println(globalScope.subScopes[0])
+	globalScope := parseScope(lines, 0, Global)
+	fmt.Println(globalScope.transpile())
 }

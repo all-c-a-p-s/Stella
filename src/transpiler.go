@@ -1,5 +1,15 @@
 package main
 
+import (
+	"fmt"
+	"reflect"
+)
+
+//line which is just "}"
+type ScopeCloser struct {
+	closer string
+}
+
 type Transpileable interface {
 	transpile() string
 }
@@ -39,5 +49,63 @@ func (F Function) transpile() string {
 
 	transpiled += " " + F.returnType.String()
 
+	transpiled += " {"
+
 	return transpiled
+}
+
+func (S SelectionStatement) transpile() string {
+	var transpiled string
+	switch S.selectionType {
+	case If:
+		transpiled = "if "
+	case ElseIf:
+		transpiled = "else if"
+	case Else:
+		transpiled = "else"
+	}
+	transpiled += S.condition.transpile()
+	transpiled += "{"
+	return transpiled
+}
+
+func (A Assignment) transpile() string {
+	var transpiled string
+	transpiled += A.v.identifier
+	transpiled += " = "
+	transpiled += A.e.transpile()
+	return transpiled
+}
+
+func (s Scope) transpile() string {
+	var transpiled string
+
+	for _, item := range s.items {
+		typeof := fmt.Sprintf("%v", reflect.TypeOf(item))
+		afterDot := false
+
+		var T string
+		for i := 0; i < len(typeof); i++ {
+			if afterDot {
+				T += string(typeof[i])
+			}
+			if typeof[i] == '.' {
+				afterDot = true
+			}
+		}
+
+		if T == "Expression" {
+			transpiled += "return " + item.transpile()
+			// only way for an expression to come alone
+		} else {
+			transpiled += item.transpile()
+		}
+		transpiled += "\n"
+	}
+
+	return transpiled
+}
+
+func (S ScopeCloser) transpile() string {
+	return S.closer
 }
