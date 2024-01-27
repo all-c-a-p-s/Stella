@@ -7,6 +7,7 @@ import (
 
 type itemType int
 
+// TODO: make subscopes work
 const (
 	VariableDeclaration itemType = iota
 	FunctionDeclaration
@@ -452,6 +453,10 @@ func parseMultiLineExpression(expression string, lineNum int, currentScope *Scop
 		}
 		if bracketCount != 0 {
 			continue
+		}
+		if getItemType(lines, lineNum+num) == VariableDeclaration {
+			v := parseVariableDeclaration(lines[lineNum+num], lineNum+num, currentScope)
+			(*currentScope).vars[v.v.identifier] = v.v
 		}
 		if exprCount > 1 {
 			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", lineNum+num+1))
@@ -913,7 +918,6 @@ func getItemType(lines []string, lineNum int) itemType {
 func ifStatementEnd(lineNum int, lines []string) int {
 	res := lineNum
 	for i := lineNum; i < len(lines); i++ {
-		res++
 		words := strings.Fields(lines[i])
 		if len(words) == 0 {
 			continue
@@ -928,6 +932,7 @@ func ifStatementEnd(lineNum int, lines []string) int {
 				panic(fmt.Sprintf("Line %d: expected either else or else if on same line as previous selection statement closed", lineNum+1))
 			}
 		}
+		res++
 	}
 	return res
 }
@@ -969,6 +974,8 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType) Scope {
 		scopeLines = lines[lineNum : scopeEnd+1]
 	}
 
+	// FIXME: need to fix solution for if/else if/else
+
 	for n := 0; n < len(scopeLines); n++ {
 
 		line := lines[n]
@@ -990,7 +997,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType) Scope {
 		case SelectionIf:
 			ifStatement := parseIfStatement(lineNum+n, lines, &newScope)
 			ended := ifStatementEnd(lineNum+n, lines)
-			n = ended
+			n = ended - 1
 
 			for _, s := range ifStatement.statements {
 				newScope.items = append(newScope.items, s)
@@ -1003,6 +1010,8 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType) Scope {
 
 		}
 	}
+
+	fmt.Println(newScope.items)
 
 	return newScope
 }

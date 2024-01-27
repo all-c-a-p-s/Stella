@@ -1,7 +1,7 @@
 fn square(x: int) -> int = {
   let mut to_return: int = 1
-  if 1 == 1 {
+  if x == 1 {
     to_return = x
   }
-  x * x
+  to_return
 }
