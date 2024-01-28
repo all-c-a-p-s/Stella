@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 )
 
 type itemType int
 
-// TODO: make subscopes work
 const (
 	VariableDeclaration itemType = iota
 	FunctionDeclaration
@@ -65,7 +65,6 @@ type IfStatement struct {
 }
 
 type SelectionStatement struct {
-	previous      *SelectionStatement
 	condition     Expression // boolean expression
 	selectionType selectionType
 }
@@ -212,7 +211,6 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 				if fnBracketCount != 0 {
 					panic(fmt.Sprintf("Line %d: bracket opened but never closed", lineNum+1))
 				}
-				fmt.Println(currentItem)
 				parsed = append(parsed, currentItem)
 				continue
 			}
@@ -415,7 +413,7 @@ func isStatement(line string) bool {
 		return true
 	}
 	switch words[0] {
-	case "if", "else", "loop", "let":
+	case "if", "loop", "let", "}":
 		return true
 	}
 	assignment := false
@@ -436,14 +434,15 @@ func isStatement(line string) bool {
 	return assignment
 }
 
-func parseMultiLineExpression(expression string, lineNum int, currentScope *Scope) Expression {
+func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) Expression {
 	// TODO: multi-line expressions inside multi-line expressions (maybe)
-	// NOTE: should be called not including brackets at beginning/end
-	lines := strings.Split(expression, "\n")
+
 	bracketCount := 0
 	exprCount := 0
+	var exprLine int
 	var expr string
-	for num, line := range lines {
+	for n := lineNum; n < len(lines); n++ {
+		line := lines[n]
 		for i := 0; i < len(line); i++ {
 			if line[i] == '{' {
 				bracketCount++
@@ -451,23 +450,27 @@ func parseMultiLineExpression(expression string, lineNum int, currentScope *Scop
 				bracketCount--
 			}
 		}
-		if bracketCount != 0 {
+		if bracketCount == 0 {
+			break
+		}
+		if bracketCount != 1 {
 			continue
 		}
-		if getItemType(lines, lineNum+num) == VariableDeclaration {
-			v := parseVariableDeclaration(lines[lineNum+num], lineNum+num, currentScope)
+		if getItemType(lines[n], n) == VariableDeclaration {
+			v := parseVariableDeclaration(lines[n], n, currentScope)
 			(*currentScope).vars[v.v.identifier] = v.v
 		}
-		if exprCount > 1 {
-			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", lineNum+num+1))
+		if exprCount >= 1 {
+			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", n+1))
 		}
 		if isStatement(line) {
 			continue
 		}
 		expr = line
+		exprLine = n
 		exprCount++
 	}
-	return parseExpression(expr, lineNum, currentScope)
+	return parseExpression(expr, exprLine, currentScope)
 }
 
 func parseParameters(params string, lineNum int) []Variable {
@@ -496,6 +499,7 @@ func parseParameters(params string, lineNum int) []Variable {
 	return variables
 }
 
+// TODO: add support for recursion so that function gets added to currentScope.functions
 func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	var allLines string
 	for _, l := range lines {
@@ -583,36 +587,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		panic(fmt.Sprintf("Line %d: found no returned expression from function", lineNum+1))
 	}
 
-	expr := allLines[exprStart:]
-
-	for i := 0; i < len(expr); i++ {
-		if expr[i] == ' ' {
-			continue
-		} else {
-			if expr[i] == '{' {
-				bracketCount := 0
-				bracketEnd := -1
-				for j := i; j < len(expr); j++ {
-					switch expr[j] {
-					case '{':
-						bracketCount++
-					case '}':
-						bracketCount--
-					}
-					if bracketCount == 0 {
-						bracketEnd = j
-					}
-				}
-				if bracketEnd == -1 || i == len(expr) {
-					panic(fmt.Sprintf("Line %d: brackets in expression in function return never closed", lineNum+1))
-				}
-				expr = expr[i+1 : bracketEnd]
-			}
-			break
-		}
-	}
-
-	expression := parseMultiLineExpression(expr, lineNum, currentScope)
+	expression := parseMultiLineExpression(lines, lineNum, currentScope)
 	if expression.dataType != returnType {
 		panic(fmt.Sprintf("Line %d: expected return type %v but found return type %v", lineNum+1, returnType, expression.dataType))
 	}
@@ -710,8 +685,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 }
 
 func parseIfStatement(lineNum int, lines []string, currentScope *Scope) IfStatement {
-	first := parseSelection(lineNum, lines, currentScope, nil)
-	parent := &first
+	first := parseSelection(lineNum, lines, currentScope)
 
 	statements := []SelectionStatement{first}
 
@@ -725,8 +699,7 @@ func parseIfStatement(lineNum int, lines []string, currentScope *Scope) IfStatem
 				break
 			}
 			if words[1] == "else" {
-				next := parseSelection(lineNum, lines, currentScope, parent)
-				parent = &next
+				next := parseSelection(lineNum, lines, currentScope)
 
 				statements = append(statements, next)
 			} else {
@@ -740,7 +713,7 @@ func parseIfStatement(lineNum int, lines []string, currentScope *Scope) IfStatem
 	}
 }
 
-func parseSelection(lineNum int, lines []string, currentScope *Scope, previous *SelectionStatement) SelectionStatement {
+func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionStatement {
 	line := lines[lineNum]
 	words := strings.Fields(line)
 	var T selectionType
@@ -750,9 +723,6 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope, previous *
 	case "}": // opened on same line where previous selection statement closed
 		if words[1] != "else" {
 			panic(fmt.Sprintf("Line %d: expected else or else if after closed selection statement", lineNum+1))
-		}
-		if previous == nil {
-			panic(fmt.Sprintf("Line %d: found else/else if statement without previous if statement", lineNum+1))
 		}
 		if len(words) == 2 {
 			panic(fmt.Sprintf("Line %d: expected condition after keyword else", lineNum+1))
@@ -802,7 +772,6 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope, previous *
 	}
 
 	return SelectionStatement{
-		previous:      previous,
 		selectionType: T,
 		condition:     condition,
 	}
@@ -813,7 +782,7 @@ func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignmen
 	words := strings.Fields(line)
 
 	if len(words) < 3 {
-		panic(fmt.Sprintf("Line %d: invalid addignment", lineNum+1))
+		panic(fmt.Sprintf("Line %d: invalid assignment", lineNum+1))
 	}
 
 	v, ok := (currentScope).vars[words[0]]
@@ -834,7 +803,7 @@ func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignmen
 
 	for i := 0; i < len(line); i++ {
 		if line[i] == '=' {
-			exprStart = i
+			exprStart = i + 1
 			break
 		}
 	}
@@ -869,8 +838,7 @@ func getScopeType(lines []string, lineNum int) ScopeType {
 	}
 }
 
-func getItemType(lines []string, lineNum int) itemType {
-	line := lines[lineNum]
+func getItemType(line string, lineNum int) itemType {
 	words := strings.Fields(line)
 	if len(words) == 0 {
 		return Empty
@@ -915,28 +883,6 @@ func getItemType(lines []string, lineNum int) itemType {
 	// shouldn't even be possible to get this
 }
 
-func ifStatementEnd(lineNum int, lines []string) int {
-	res := lineNum
-	for i := lineNum; i < len(lines); i++ {
-		words := strings.Fields(lines[i])
-		if len(words) == 0 {
-			continue
-		}
-		if words[0] == "}" {
-			if len(words) == 1 {
-				break
-			}
-			if words[1] == "else" {
-				continue
-			} else {
-				panic(fmt.Sprintf("Line %d: expected either else or else if on same line as previous selection statement closed", lineNum+1))
-			}
-		}
-		res++
-	}
-	return res
-}
-
 func parseScopeCloser(lines []string, lineNum int) ScopeCloser { // greatest function of all time
 	line := lines[lineNum]
 	words := strings.Fields(line)
@@ -953,7 +899,23 @@ func parseScopeCloser(lines []string, lineNum int) ScopeCloser { // greatest fun
 	}
 }
 
-func parseScope(lines []string, lineNum int, scopeType ScopeType) Scope {
+func typeOfItem(item Transpileable) string {
+	typeof := fmt.Sprintf("%v", reflect.TypeOf(item))
+	afterDot := false
+
+	var T string
+	for i := 0; i < len(typeof); i++ {
+		if afterDot {
+			T += string(typeof[i])
+		}
+		if typeof[i] == '.' {
+			afterDot = true
+		}
+	}
+	return T
+}
+
+func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope) Scope {
 	newScope := Scope{
 		vars:      map[string]Variable{},
 		functions: map[string]Function{},
@@ -961,57 +923,167 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType) Scope {
 		items:     []Transpileable{},
 	}
 
-	// NOTE: should be called inluding opening line
-	scopeEnd := findScopeEnd(lines, lineNum)
+	if parent != nil {
+		// manually copy as maps are reference types
+		newScope.vars = make(map[string]Variable)
+		for k, v := range (*parent).vars {
+			newScope.vars[k] = v
+		}
 
-	var scopeLines []string
-
-	if scopeEnd == lineNum {
-		scopeLines = []string{lines[lineNum]}
-	} else if scopeEnd == len(lines)-1 {
-		scopeLines = lines[lineNum:]
-	} else {
-		scopeLines = lines[lineNum : scopeEnd+1]
-	}
-
-	// FIXME: need to fix solution for if/else if/else
-
-	for n := 0; n < len(scopeLines); n++ {
-
-		line := lines[n]
-
-		T := getItemType(lines, lineNum+n)
-		switch T {
-		case VariableDeclaration:
-			declaration := parseVariableDeclaration(line, lineNum+n, &newScope)
-			newScope.items = append(newScope.items, declaration)
-		case FunctionDeclaration:
-			fn := parseFunction(lines, lineNum+n, &newScope)
-			newScope.items = append(newScope.items, fn)
-		case VariableAssignment:
-			assignment := parseAssignment(lines, lineNum+n, &newScope)
-			newScope.items = append(newScope.items, assignment)
-		case ReturnStatement:
-			expr := parseExpression(line, lineNum+n, &newScope)
-			newScope.items = append(newScope.items, expr)
-		case SelectionIf:
-			ifStatement := parseIfStatement(lineNum+n, lines, &newScope)
-			ended := ifStatementEnd(lineNum+n, lines)
-			n = ended - 1
-
-			for _, s := range ifStatement.statements {
-				newScope.items = append(newScope.items, s)
-			}
-		case SelectionElse, SelectionElseIf, Empty:
-			// else/else if have been dealt with in if statement
-		case ScopeClose:
-			closer := parseScopeCloser(lines, lineNum+n)
-			newScope.items = append(newScope.items, closer)
-
+		newScope.functions = make(map[string]Function)
+		for k, v := range (*parent).functions {
+			newScope.functions[k] = v
 		}
 	}
 
-	fmt.Println(newScope.items)
+	// NOTE: should be called inluding opening line
+	scopeEnd := findScopeEnd(lines, lineNum)
+
+	start, end := lineNum+1, scopeEnd
+	if scopeType == Global {
+		start, end = lineNum, len(lines)
+	}
+
+	// FIXME: need to fix solution for if/else if/else
+	// IDEA: write a specific function in transpiler.go
+	// to transpile whole IfStatement{} struct
+
+	var bracketCount int
+	// where target is the bracketCount required to be in main scope
+
+	for n := start; n < end; n++ {
+
+		line := lines[n]
+		var inMainScope bool // whether or not it is inside the main scope being read
+		for i := 0; i < len(line); i++ {
+			switch line[i] {
+			case '{':
+				bracketCount++
+			case '}':
+				bracketCount--
+			}
+
+			if bracketCount == 0 {
+				inMainScope = true
+			}
+		}
+
+		T := getItemType(line, n)
+		if !inMainScope && T != ScopeClose {
+			continue
+		}
+
+		switch T {
+		case VariableDeclaration:
+			declaration := parseVariableDeclaration(line, n, &newScope)
+			newScope.items = append(newScope.items, declaration)
+
+		case FunctionDeclaration:
+			// FIXME: pretty sure this will make function parameters be in scope for newScope as well as subScope
+			subScope := Scope{}
+
+			// copy manually as maps are reference types
+			subScope.vars = make(map[string]Variable)
+			for k, v := range newScope.vars {
+				subScope.vars[k] = v
+			}
+
+			subScope.functions = make(map[string]Function)
+			for k, v := range newScope.functions {
+				subScope.functions[k] = v
+			}
+
+			fn := parseFunction(lines, n, &subScope)
+			newScope.functions[fn.identifier] = fn
+			newScope.items = append(newScope.items, fn)
+
+			subScope = parseScope(lines, n, FunctionScope, &subScope)
+			newScope.items = append(newScope.items, subScope)
+			ended := findScopeEnd(lines, n)
+			n = ended - 1
+
+		case VariableAssignment:
+			assignment := parseAssignment(lines, n, &newScope)
+			newScope.items = append(newScope.items, assignment)
+
+		case ReturnStatement:
+			if scopeType != FunctionScope {
+				panic(fmt.Sprintf("Line %d: Found return statement outside function scope", n+1))
+			}
+			expr := parseExpression(line, n, &newScope)
+			newScope.items = append(newScope.items, expr)
+
+		case SelectionIf:
+
+			subScope := Scope{}
+
+			// copy manually as maps are reference types
+			subScope.vars = make(map[string]Variable)
+			for k, v := range newScope.vars {
+				subScope.vars[k] = v
+			}
+
+			subScope.functions = make(map[string]Function)
+			for k, v := range newScope.functions {
+				subScope.functions[k] = v
+			}
+
+			ifStatement := parseSelection(n, lines, &subScope)
+			newScope.items = append(newScope.items, ifStatement)
+
+			subScope = parseScope(lines, n, SelectionScope, &subScope)
+			newScope.items = append(newScope.items, subScope)
+			// fmt.Println(subScope)
+			ended := findScopeEnd(lines, n)
+			n = ended - 1
+
+		case SelectionElse, SelectionElseIf:
+			if len(newScope.items) == 0 {
+				panic(fmt.Sprintf("Line %d: else/else if statements must be preceded by other selection statements", n+1))
+			}
+			if typeOfItem(newScope.items[len(newScope.items)-1]) != "Scope" {
+				panic(fmt.Sprintf("Line %d: else/else if statements must be preceded by other selection statements", n+1))
+			}
+			// TODO: actually check that previous scope's type is SelectionScope
+
+			subScope := Scope{}
+
+			// copy manually as maps are reference types
+			subScope.vars = make(map[string]Variable)
+			for k, v := range newScope.vars {
+				subScope.vars[k] = v
+			}
+
+			subScope.functions = make(map[string]Function)
+			for k, v := range newScope.functions {
+				subScope.functions[k] = v
+			}
+
+			ifStatement := parseSelection(n, lines, &subScope)
+			newScope.items = append(newScope.items, ifStatement)
+
+			subScope = parseScope(lines, n, SelectionScope, &subScope)
+			newScope.items = append(newScope.items, subScope)
+			ended := findScopeEnd(lines, n)
+			n = ended - 1
+
+		case Empty:
+
+		case ScopeClose:
+			if n == end {
+				closer := ScopeCloser{closer: "}"}
+				newScope.items = append(newScope.items, closer)
+			} else {
+				closer := parseScopeCloser(lines, n)
+				newScope.items = append(newScope.items, closer)
+
+			}
+		}
+	}
+
+	if len(newScope.items) == 0 {
+		panic(fmt.Sprintf("Line %d: scope is empty", lineNum+1))
+	}
 
 	return newScope
 }

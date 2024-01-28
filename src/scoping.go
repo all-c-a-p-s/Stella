@@ -110,6 +110,6 @@ func main() {
 		lines = append(lines, scanner.Text())
 	}
 
-	globalScope := parseScope(lines, 0, Global)
+	globalScope := parseScope(lines, 0, Global, nil)
 	fmt.Println(globalScope.transpile())
 }

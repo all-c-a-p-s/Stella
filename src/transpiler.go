@@ -1,10 +1,5 @@
 package main
 
-import (
-	"fmt"
-	"reflect"
-)
-
 //line which is just "}"
 type ScopeCloser struct {
 	closer string
@@ -60,9 +55,9 @@ func (S SelectionStatement) transpile() string {
 	case If:
 		transpiled = "if "
 	case ElseIf:
-		transpiled = "else if"
+		transpiled = "} else if "
 	case Else:
-		transpiled = "else"
+		transpiled = "} else "
 	}
 	transpiled += S.condition.transpile()
 	transpiled += "{"
@@ -81,18 +76,7 @@ func (s Scope) transpile() string {
 	var transpiled string
 
 	for _, item := range s.items {
-		typeof := fmt.Sprintf("%v", reflect.TypeOf(item))
-		afterDot := false
-
-		var T string
-		for i := 0; i < len(typeof); i++ {
-			if afterDot {
-				T += string(typeof[i])
-			}
-			if typeof[i] == '.' {
-				afterDot = true
-			}
-		}
+		T := typeOfItem(item)
 
 		if T == "Expression" {
 			transpiled += "return " + item.transpile()

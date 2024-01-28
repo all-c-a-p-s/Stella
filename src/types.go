@@ -333,10 +333,13 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 	return exprType
 }
 
+// TODO: check negative numbers lol
 func checkIntVal(value string, lineNum int) { // checks to see if int value contains illegal characters/leading zeros etc.
 	switch value[0] {
 	case '0':
-		panic(fmt.Sprintf("Line %d: Integers values cannot have leading zeros", lineNum+1))
+		if len(value) != 1 {
+			panic(fmt.Sprintf("Line %d: Integers values cannot have leading zeros", lineNum+1))
+		}
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 	default:
 		panic(fmt.Sprintf("Line %d: character %c cannot be part of an integer value", lineNum+1, value[0]))

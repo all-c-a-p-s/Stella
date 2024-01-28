@@ -1,7 +1,13 @@
-fn square(x: int) -> int = {
-  let mut to_return: int = 1
-  if x == 1 {
-    to_return = x
-  }
-  to_return
+let x: int = 1
+let mut to_return: int = 1
+if x == 1 {
+  to_return = x
+} else if x == 0 {
+  to_return = 0
+} else if x == 2 {
+  to_return = 4
+} 
+fn square(y: int) -> int =  {
+  y * y
 }
+let mut foo: int = x
