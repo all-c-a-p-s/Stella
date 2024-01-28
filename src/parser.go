@@ -756,6 +756,8 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionS
 		}
 	}
 
+	// TODO: fix else so that it cannot contain a condition
+
 	exprEnd := 0
 
 	for i := len(line) - 1; i > 0; i-- {

@@ -59,7 +59,7 @@ func (S SelectionStatement) transpile() string {
 	case Else:
 		transpiled = "} else "
 	}
-	transpiled += S.condition.transpile()
+	transpiled += S.condition.transpile() + " "
 	transpiled += "{"
 	return transpiled
 }
