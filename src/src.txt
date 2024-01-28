@@ -1,13 +1,7 @@
-let x: int = 1
-let mut to_return: int = 1
-if x == 1 {
-  to_return = x
-} else if x == 0 {
-  to_return = 0
-} else if x == 2 {
-  to_return = 4
-} 
-fn square(y: int) -> int =  {
-  y * y
+fn factorial(x: int) -> int = {
+  let mut to_return: int = 0
+  if x > 1 {
+    to_return = x * factorial(x-1)
+  }
+  to_return
 }
-let mut foo: int = x

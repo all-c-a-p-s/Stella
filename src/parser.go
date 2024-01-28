@@ -946,10 +946,6 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		start, end = lineNum, len(lines)
 	}
 
-	// FIXME: need to fix solution for if/else if/else
-	// IDEA: write a specific function in transpiler.go
-	// to transpile whole IfStatement{} struct
-
 	var bracketCount int
 	// where target is the bracketCount required to be in main scope
 
@@ -981,7 +977,6 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			newScope.items = append(newScope.items, declaration)
 
 		case FunctionDeclaration:
-			// FIXME: pretty sure this will make function parameters be in scope for newScope as well as subScope
 			subScope := Scope{}
 
 			// copy manually as maps are reference types
