@@ -16,7 +16,9 @@ func (E Expression) transpile() string {
 		transpiled += item
 		transpiled += " "
 	}
-	transpiled = transpiled[:len(transpiled)-1] // remove last space
+	if len(transpiled) != 0 {
+		transpiled = transpiled[:len(transpiled)-1] // remove last space
+	}
 	return transpiled
 }
 
@@ -29,7 +31,6 @@ func (D Declaration) transpile() string {
 	return transpiled
 }
 
-// TODO: finish this to include multi-line expression
 func (F Function) transpile() string {
 	transpiled := "func "
 	transpiled += F.identifier

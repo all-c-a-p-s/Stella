@@ -333,7 +333,6 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 	return exprType
 }
 
-// TODO: check negative numbers lol
 func checkIntVal(value string, lineNum int) { // checks to see if int value contains illegal characters/leading zeros etc.
 	switch value[0] {
 	case '0':

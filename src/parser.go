@@ -505,7 +505,6 @@ func parseParameters(params string, lineNum int) []Variable {
 	return variables
 }
 
-// TODO: add support for recursion so that function gets added to currentScope.functions
 func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	var allLines string
 	for _, l := range lines {
@@ -762,8 +761,6 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionS
 		}
 	}
 
-	// TODO: fix else so that it cannot contain a condition
-
 	exprEnd := 0
 
 	for i := len(line) - 1; i > 0; i-- {
@@ -772,8 +769,24 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionS
 		}
 	}
 
-	expr := line[exprStart:exprEnd]
-	condition := parseExpression(expr, lineNum, currentScope)
+	var condition Expression
+	var expr string
+
+	if exprStart+1 < exprEnd {
+		expr = line[exprStart:exprEnd]
+	}
+
+	if T == Else {
+		if len(strings.Fields(expr)) != 0 {
+			panic(fmt.Sprintf("Line %d: else statements cannot contain a condition", lineNum+1))
+		}
+		condition = Expression{
+			items:    []string{},
+			dataType: Bool,
+		}
+	} else {
+		condition = parseExpression(expr, lineNum, currentScope)
+	}
 
 	if condition.dataType != Bool {
 		panic(fmt.Sprintf("Line %d: if statement found with non-boolean condition", lineNum+1))
