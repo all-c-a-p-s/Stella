@@ -159,6 +159,7 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *Scope) Dec
 	for i := 0; i < len(line); i++ {
 		if line[i] == '=' {
 			equalsCharIndex = i
+			break
 		}
 		// should always find it because of exit condition above
 	}
@@ -188,6 +189,7 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 	var parsed []string
 	var currentItem string
 	var bracketCount int
+
 	// TODO: account for string literal while parsing tokens
 	for i := 0; i < len(expression); i++ {
 		switch expression[i] { // split on operators and spaces
@@ -251,7 +253,7 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 			if i == len(expression)-1 {
 				panic(fmt.Sprintf("Line %d: operator %s found at end of expression with no value after", lineNum+1, string(expression[i])))
 			}
-			if expression[i+1] == '=' { //
+			if expression[i+1] == '=' {
 				if len(currentItem) != 0 {
 					parsed = append(parsed, currentItem)
 				}
@@ -302,7 +304,11 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 			continue
 		}
 		if binaryOperator {
-			checkBinaryOperator(token, previous, next, lineNum, currentScope)
+			if i != 0 {
+				checkBinaryOperator(token, previous, next, lineNum, currentScope)
+			} else if token != "-" {
+				checkBinaryOperator(token, previous, next, lineNum, currentScope)
+			}
 		} else if unaryOperator {
 			checkUnaryOperator(token, previous, next, lineNum, currentScope)
 		} else {
@@ -1030,7 +1036,6 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 
 			subScope = parseScope(lines, n, SelectionScope, &subScope)
 			newScope.items = append(newScope.items, subScope)
-			// fmt.Println(subScope)
 			ended := findScopeEnd(lines, n)
 			n = ended - 1
 
