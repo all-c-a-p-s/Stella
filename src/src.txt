@@ -1,9 +1,7 @@
-fn factorial(x: int) -> int = {
-  let mut to_return: int = - 1
-  if x > 1 {
-    to_return = x * factorial(x-1)
-  } else {
-      to_return = 1
-    }
+fn fibonacci(n: int) -> int = {
+  let mut to_return: int = 1
+  if n > 2 {
+    to_return = fibonacci(n-1) + fibonacci(n-2)
+  }
   to_return
 }

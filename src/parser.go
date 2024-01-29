@@ -214,6 +214,7 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 					panic(fmt.Sprintf("Line %d: bracket opened but never closed", lineNum+1))
 				}
 				parsed = append(parsed, currentItem)
+				currentItem = ""
 				continue
 			}
 			bracketCount++
