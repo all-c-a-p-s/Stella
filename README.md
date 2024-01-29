@@ -5,14 +5,14 @@ The concept of this programming language is that everything is an expression wit
 
 variables are declared using the syntax
 ```
-let name: type = val
+let name: string = "Stella"
 ```
 
 variables in Stella are immutable by default, and can be made mutable using the ```mut``` keyword
 
 functions are declared like this:
 ```
-let square: fn(x: int) -> int = {
+function(x: int) -> int = {
   x * x
 }
 ```
@@ -31,16 +31,21 @@ or multi-line expressions evaluating to a single value:
 }
 ```
 
+boolean expressions in Stella use brackets for clarity
+
 ```
-let foo: bool = {1==1}&&{2==2}
+let foo: bool = (1==1)&&(2==2)
 ```
 
-selection statements in Stella can be used inside expressions
+selection statements in Stella are used with the if keyword and a boolean expression
 ```
-let auth: fn(password: string) -> bool = {
-  if password == "secret123" {true}
-  else if password = "hello456" {true}
-  else {false};
+let mut ok: bool = false
+if password == "secret123" {
+  ok = true 
+} else if password == "let me in please" {
+  ok = true 
+} else {
+  ok = false 
 }
 ```
 
@@ -56,6 +61,9 @@ syntactic characters in Stella each have a single specific purpose
 | <>        | to contain types/sizes of collections                       |
 | ->        | is mapped to                                                |
 
+
+TODO:
+-----
 
 collections are types which can be attributed to variables:
 ```
