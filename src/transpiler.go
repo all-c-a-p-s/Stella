@@ -25,7 +25,11 @@ func (E Expression) transpile() string {
 func (D Declaration) transpile() string {
 	transpiled := "var "
 	transpiled += D.v.identifier + " "
-	transpiled += D.v.dataType.String() + " "
+	if D.v.dataType != Float {
+		transpiled += D.v.dataType.String() + " "
+	} else {
+		transpiled += D.v.dataType.String() + "64" + " "
+	}
 	transpiled += " = "
 	transpiled += D.e.transpile()
 	return transpiled
@@ -38,12 +42,19 @@ func (F Function) transpile() string {
 
 	for _, p := range F.parameters {
 		transpiled += p.identifier
-		transpiled += " " + p.dataType.String()
+		if p.dataType != Float {
+			transpiled += " " + p.dataType.String()
+		} else {
+			transpiled += " " + p.dataType.String() + "64"
+		}
 	}
 
 	transpiled += ")"
 
 	transpiled += " " + F.returnType.String()
+	if F.returnType == Float {
+		transpiled += "64"
+	}
 
 	transpiled += " {"
 
