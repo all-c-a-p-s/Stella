@@ -65,14 +65,14 @@ func conditionalKeywords() map[string]struct{} {
 func typeKeywords() map[string]struct{} {
 	// taer include map and set
 	return map[string]struct{}{
-		"int":    {},
-		"float":  {},
-		"bool":   {},
-		"byte":   {},
-		"string": {},
-		"fn":     {},
-		"arr":    {},
-		"vec":    {},
+		"int":      {},
+		"float":    {},
+		"bool":     {},
+		"byte":     {},
+		"string":   {},
+		"function": {},
+		"arr":      {},
+		"vec":      {},
 	}
 }
 

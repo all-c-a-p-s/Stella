@@ -1,4 +1,4 @@
-fn fibonacci(n: int) -> int = {
+function fibonacci(n: int) -> int = {
   let mut to_return: int = 1
   if n > 2 {
     to_return = fibonacci(n-1) + fibonacci(n-2)

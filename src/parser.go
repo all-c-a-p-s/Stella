@@ -516,8 +516,8 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	line := lines[lineNum]
 	// var returnType primitiveType
 	words := strings.Fields(line)
-	if words[0] != "fn" {
-		panic("parseFunction() somehow called without fn keyword")
+	if words[0] != "function" {
+		panic("parseFunction() somehow called without function keyword")
 	}
 
 	identEnd := 0
@@ -851,7 +851,7 @@ func getScopeType(lines []string, lineNum int) ScopeType {
 	line := lines[lineNum]
 	words := strings.Fields(line)
 	switch words[0] {
-	case "fn":
+	case "function":
 		return FunctionScope
 	case "if", "else":
 		return SelectionScope
@@ -866,7 +866,7 @@ func getItemType(line string, lineNum int) itemType {
 		return Empty
 	}
 	switch words[0] {
-	case "fn":
+	case "function":
 		return FunctionDeclaration
 	case "let":
 		return VariableDeclaration
