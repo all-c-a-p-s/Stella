@@ -593,7 +593,13 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		panic(fmt.Sprintf("Line %d: found no returned expression from function", lineNum+1))
 	}
 
-	expression := parseMultiLineExpression(lines, lineNum, currentScope)
+	var expression Expression
+
+	if strings.Trim(lines[lineNum][exprStart:], " ")[0] != '{' { // single-line expression
+		expression = parseExpression(lines[lineNum][exprStart:], lineNum, currentScope)
+	} else {
+		expression = parseMultiLineExpression(lines, lineNum, currentScope)
+	}
 	if expression.dataType != returnType {
 		panic(fmt.Sprintf("Line %d: expected return type %v but found return type %v", lineNum+1, returnType, expression.dataType))
 	}

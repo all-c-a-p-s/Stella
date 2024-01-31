@@ -25,3 +25,4 @@ function exp2(x: int) -> int = {
 function celsius_to_fahrenheit(temp: float) -> float = {
   temp * 1.8 + 32.0
 }
+
