@@ -1,6 +1,9 @@
 # Stella
 
-The concept of this programming language is that everything is an expression with a type and a value.
+Stella (Strongly Typed Expressive Lightweight LAnguage) has 3 main aims:
+- to be simple to learn and accessible, and easy to write code in
+- to include features making it easy to write bug-free code   
+- to be fast, with similar performance to the garbage-collected Go (which it currently transpiles to)
 
 
 variables are declared using the syntax
@@ -27,7 +30,7 @@ or multi-line expressions evaluating to a single value:
 {
   let a: int = 5
   let b: int = 10
-  a * b --expresion evaluates to this value
+  a * b --expression evaluates to this value
 }
 ```
 
@@ -49,32 +52,14 @@ if password == "secret123" {
 }
 ```
 
-syntactic characters in Stella each have a single specific purpose
-
-| character | purpose                                                     |
-|-----------|-------------------------------------------------------------|
-| :         | type annotations                                            |
-| {}        | to open and close scopes evaluating to expressions          |
-| []        | to contain collections such as arrays, vectors and maps     |
-| ()        | to contain parameters of a function                         |
-| ,         | separating values                                           |
-| <>        | to contain types/sizes of collections                       |
-| ->        | is mapped to                                                |
-
 
 TODO:
 -----
 
 collections are types which can be attributed to variables:
 ```
-let nums: arr<int, 5> = [23, 5, 90, 2, 88] --fixed size array
-let names: vec<string> = ["bob", "jim", "jeff"] --vector of variable size
-let ages: map<string, int> = [
-  "bob" -> 12,
-  "timmy" -> 50,
-  "alex" -> 32,
-]
-
+let nums: int[5] = [23, 5, 90, 2, 88] --fixed size array
+let names: string[] = ["tim", "sarah", "sam"] --vector of variable size
 ```
 
 the aim is that the simple and consistent syntax should make Stella an approachable and interesting language
