@@ -569,17 +569,17 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	afterWords := strings.Fields(afterIdent)
 
 	if len(afterWords) < 3 {
-		panic(fmt.Sprintf("Line %d: Expected return type annotation '->' and equals sign '=' after function indentifier", lineNum+1))
+		panic(fmt.Sprintf("Line %d: Expected return type annotation '=>' and equals sign '=' after function indentifier", lineNum+1))
 	}
 
-	if afterWords[0] != "->" {
-		panic(fmt.Sprintf("Line %d: expected return type annotation with '->'", lineNum+1))
+	if afterWords[0] != "=>" {
+		panic(fmt.Sprintf("Line %d: expected return type annotation with '=>'", lineNum+1))
 	}
 
 	returnType := readType(afterWords[1], lineNum)
 
 	if afterWords[2] != "=" {
-		panic(fmt.Sprintf("Line %d: expected equals sign '=' after return type annotation ->", lineNum+1))
+		panic(fmt.Sprintf("Line %d: expected equals sign '=' after return type annotation =>", lineNum+1))
 	}
 
 	exprStart := 0
@@ -881,7 +881,7 @@ func getItemType(line string, lineNum int) itemType {
 	case "}":
 		if len(words) == 1 {
 			return ScopeClose
-		} //-> must be at least 2
+		} //=> must be at least 2
 		if words[1] != "else" {
 			panic(fmt.Sprintf("Line %d: only an else/else if statement can be opened on the same line where another scope is closed", lineNum+1))
 		}
