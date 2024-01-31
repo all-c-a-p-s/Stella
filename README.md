@@ -1,6 +1,6 @@
 # Stella
 
-Stella (Strongly Typed Expressive Lightweight LAnguage) has 3 main aims:
+### Stella (Strongly Typed Expressive Lightweight LAnguage) has 3 main aims:
 - to be simple to learn and accessible, and easy to write code in
 - to include features making it easy to write bug-free code   
 - to be fast, with similar performance to the garbage-collected Go (which it currently transpiles to)
@@ -37,7 +37,7 @@ or multi-line expressions evaluating to a single value:
 boolean expressions in Stella use brackets for clarity
 
 ```
-let foo: bool = (1==1)&&(2==2)
+let auth: bool = (username == "marvin") && (password == "secret123")
 ```
 
 selection statements in Stella are used with the if keyword and a boolean expression
