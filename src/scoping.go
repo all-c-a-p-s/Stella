@@ -110,6 +110,6 @@ func main() {
 	}
 
 	globalScope := parseScope(lines, 0, Global, nil)
-	fmt.Println(parseArray("[1, 2, 3]", Int, &globalScope, 0))
+	fmt.Println(parseArrayDeclaration("let nums: int[3] = [1, 2, 3]", 0, &globalScope))
 	fmt.Println(globalScope.transpile())
 }

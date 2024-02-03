@@ -3,7 +3,14 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
+
+type Array struct {
+	identifier string
+	dataType   ArrayType
+	mut        bool
+}
 
 // let nums: int[5] = [1, 2, 3, 4, 5]
 type ArrayType struct {
@@ -17,11 +24,16 @@ type BaseArray struct {
 	length   int
 }
 
-type Array[T primitiveType] struct {
-	children []*Array[T]  // will be empty if it is a base-array
-	elements []Expression // will be empty if not a base-array
+type ArrayValue[T primitiveType] struct {
+	children []*ArrayValue[T] // will be empty if it is a base-array
+	elements []Expression     // will be empty if not a base-array
 	baseType primitiveType
 	length   int
+}
+
+type ArrayDeclaration struct {
+	arr  Array
+	expr ArrayValue[primitiveType]
 }
 
 func squareBracketEnd(s string, start, lineNum int) int {
@@ -149,7 +161,7 @@ func parseBaseArray(arrayValue string, expectedType primitiveType, currentScope 
 	}
 }
 
-func parseArray[T primitiveType](arrayValue string, expectedType primitiveType, currentScope *Scope, lineNum int) Array[T] {
+func parseArray[T primitiveType](arrayValue string, expectedType primitiveType, currentScope *Scope, lineNum int) ArrayValue[T] {
 	if len(arrayValue) < 2 {
 		panic(fmt.Sprintf("line %d: length of array value cannot be less than two", lineNum+1))
 	}
@@ -157,15 +169,15 @@ func parseArray[T primitiveType](arrayValue string, expectedType primitiveType, 
 		panic("arrayValue passed into parseBaseArray() wasn't opened and closed with square brackets")
 	}
 	if len(arrayValue) == 2 {
-		return Array[T]{
-			children: []*Array[T]{},
+		return ArrayValue[T]{
+			children: []*ArrayValue[T]{},
 			elements: []Expression{},
 			baseType: expectedType,
 			length:   0,
 		}
 	}
 
-	var children []*Array[T]
+	var children []*ArrayValue[T]
 	var elements []Expression
 	var L int
 
@@ -211,7 +223,7 @@ func parseArray[T primitiveType](arrayValue string, expectedType primitiveType, 
 		}
 		L = len(children)
 	}
-	return Array[T]{
+	return ArrayValue[T]{
 		children: children,
 		elements: elements,
 		baseType: expectedType,
@@ -219,4 +231,71 @@ func parseArray[T primitiveType](arrayValue string, expectedType primitiveType, 
 	}
 }
 
-//[[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+// let mut nums: int[5] = [1, 2, 3, 4, 5]
+func parseArrayDeclaration(line string, lineNum int, currentScope *Scope) ArrayDeclaration {
+	// TODO: multi-dimensional arrays
+
+	var mut bool
+
+	words := strings.Fields(line)
+	if len(words) == 0 {
+		panic("parseArrayDeclaration() called on empty line")
+	}
+	if words[0] != "let" {
+		panic(fmt.Sprintf("Line %d: array declaration without let keyword at beginning of line", lineNum+1))
+	}
+	identifierIndex := 1
+	if len(words) == 1 {
+		panic(fmt.Sprintf("Line %d: array declaration on line with only let keyword", lineNum+1))
+	}
+	if words[1] == "mut" {
+		identifierIndex = 2
+		mut = true
+	}
+
+	typeIndex, equalsIndex := identifierIndex+1, identifierIndex+2
+
+	expectedType := parseArrayType(words[typeIndex], lineNum)
+
+	id := parseIdentifier(words[identifierIndex], lineNum)
+	if words[equalsIndex] != "=" {
+		panic(fmt.Sprintf("Line %d: expected = sign but found %s", lineNum+1, words[equalsIndex]))
+	}
+
+	var equalsCharIndex int // expression is everything after equals
+	for i := 0; i < len(line); i++ {
+		if line[i] == '=' {
+			equalsCharIndex = i
+			break
+		}
+		// should always find it because of exit condition above
+	}
+
+	if equalsCharIndex == len(line)-1 {
+		panic(fmt.Sprintf("Line %d: found no value assigned to array %s in declaration statement", lineNum+1, id))
+	}
+	expression := strings.Trim(line[equalsCharIndex+1:], " ")
+	arrFound := parseArray[primitiveType](expression, expectedType.baseType, currentScope, lineNum)
+
+	if len(arrFound.children) > 0 {
+		panic(fmt.Sprintf("Line %d: currently elements of arrays can only be primitive types, not arrays", lineNum+1))
+	}
+
+	if arrFound.baseType != expectedType.baseType {
+		panic(fmt.Sprintf("Line %d: expected array of type %v found array of type %v", lineNum+1, expectedType.baseType, arrFound.baseType))
+	}
+
+	if arrFound.length != expectedType.dimensions[0] {
+		panic(fmt.Sprintf("Line %d: expected array of length %d, found array of length %d", lineNum+1, arrFound.length, expectedType.dimensions[0]))
+	}
+
+	arr := Array{
+		mut:        mut,
+		identifier: id,
+		dataType:   expectedType,
+	}
+	return ArrayDeclaration{
+		arr:  arr,
+		expr: arrFound,
+	}
+}
