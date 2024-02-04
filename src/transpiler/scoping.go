@@ -104,7 +104,7 @@ func TranspileTarget(path string) string {
 	defer func(src *os.File) {
 		err := src.Close()
 		if err != nil {
-			panic("Error closing source code file")
+			panic("error closing source code file")
 		}
 	}(src)
 
