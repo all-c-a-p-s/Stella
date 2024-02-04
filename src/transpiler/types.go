@@ -269,16 +269,16 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 				if !numericType(expressionType(next, lineNum, currentScope)) {
 					panic(fmt.Sprintf("Line %d: Unary operator '-' found before non numeric type", lineNum+1))
 				}
-				typesFound[expressionType(next, lineNum, currentScope)] = struct{}{}
+				// typesFound[expressionType(next, lineNum, currentScope)] = struct{}{}
 			} else {
-				_, ok1 := numericOperators()[expr[operatorIndex-1]]
-				_, ok2 := comparativeOperators()[expr[operatorIndex-1]]
-				if ok1 || ok2 { // after either numeric operator or comparative operator
+				_, prevBinary := binaryOperators()[expr[operatorIndex-1]]
+				if prevBinary { // after either numeric operator or comparative operator
 					next := nextTerm(expr, operatorIndex, lineNum)
 					if !numericType(expressionType(next, lineNum, currentScope)) {
 						panic(fmt.Sprintf("Line %d: Unary operator '-' found before non numeric type", lineNum+1))
 					}
-					typesFound[expressionType(next, lineNum, currentScope)] = struct{}{}
+					// do not add to typesFound if used as unary operator
+
 				} else { // used as binary operator
 					previous := previousTerm(expr, operatorIndex, lineNum)
 					next := nextTerm(expr, operatorIndex, lineNum)
@@ -293,7 +293,7 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 			if expressionType(next, lineNum, currentScope) != Bool {
 				panic(fmt.Sprintf("Line %d: Unary operator '!' used before non-boolean value", lineNum+1))
 			}
-			typesFound[Bool] = struct{}{}
+			// typesFound[Bool] = struct{}{}
 		case "+", "*", "/": // TODO: make + also work for strings
 			previous := previousTerm(expr, operatorIndex, lineNum)
 			next := nextTerm(expr, operatorIndex, lineNum)

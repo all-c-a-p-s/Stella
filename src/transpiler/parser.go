@@ -111,21 +111,19 @@ func parseCharType(char byte) charType {
 }
 
 func parseIdentifier(id string, lineNum int) string {
+	last := len(id) - 1
+	if id[last] != ':' { // last character must be colon for type annotation
+		panic(fmt.Sprintf("Line %d: Name '%s' is invalid because the last character must be a colon for type annotation, but here it is '%s'", lineNum+1, id, string(id[last])))
+	}
 	// returns string if valid name, otherwise panics
 	if !(parseCharType(id[0]) == letter) { // doesn't begin with uppercase or lowercase letter
 		panic(fmt.Sprintf("Line %d: Name '%s' is invalid because it does not begin with a letter", lineNum+1, id))
 	}
 
-	last := len(id) - 1
-
 	for i := 0; i < last; i++ { // last character can be syntactic character
 		if !(parseCharType(id[i]) == letter || parseCharType(id[i]) == number || parseCharType(id[i]) == underscore) { // character other than letters, number or underscore
 			panic(fmt.Sprintf("Line %d: Name '%s' is invalid because it contains invalid character '%s'", lineNum+1, id, string(id[i])))
 		}
-	}
-
-	if id[last] != ':' { // last character must be colon for type annotation
-		panic(fmt.Sprintf("Line %d: Name '%s' is invalid because the last character must be a colon for type annotation, but here it is '%s'", lineNum+1, id, string(id[last])))
 	}
 
 	if _, ok := allKeywords()[id]; ok {
@@ -333,15 +331,23 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 		if token == "(" || token == ")" || token == "{" || token == "}" {
 			continue
 		}
-		if binaryOperator {
-			if i != 0 {
-				checkBinaryOperator(token, previous, next, lineNum, currentScope)
-			} else if token != "-" {
-				checkBinaryOperator(token, previous, next, lineNum, currentScope)
+
+		if binaryOperator && token != "-" {
+			checkBinaryOperator(token, previous, next, lineNum, currentScope)
+		}
+		if unaryOperator {
+			if token == "-" {
+				_, prevBinary := binaryOperators()[previous]
+				if i == 0 || prevBinary {
+					checkUnaryOperator(token, previous, next, lineNum, currentScope)
+				} else {
+					checkBinaryOperator(token, previous, next, lineNum, currentScope)
+				}
+			} else {
+				checkUnaryOperator(token, previous, next, lineNum, currentScope)
 			}
-		} else if unaryOperator {
-			checkUnaryOperator(token, previous, next, lineNum, currentScope)
-		} else {
+		}
+		if !unaryOperator && !binaryOperator {
 			checkValue(token, previous, next, lineNum, currentScope)
 		}
 	}
@@ -416,7 +422,9 @@ func checkBinaryOperator(operator, previous, next string, lineNum int, currentSc
 	}
 
 	checkValue(previous, "", operator, lineNum, currentScope) // again doesn't matter what comes before value
-	checkValue(next, operator, "", lineNum, currentScope)     // as above
+	if _, ok := unaryOperators()[next]; !ok {
+		checkValue(next, operator, "", lineNum, currentScope) // as above
+	}
 }
 
 func checkBrackets(bracket, previous, next string, lineNum int) {
@@ -734,19 +742,24 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 		switch params[i] {
 		case '(':
 			bracketCount++
+			currentParam += string(params[i])
 		case ')':
 			bracketCount--
+			currentParam += string(params[i])
 		case ',':
 			if bracketCount == 0 {
 				parameterExprs = append(parameterExprs, currentParam)
 				currentParam = ""
 			}
 		case ' ':
-			continue
+			if len(currentParam) != 0 {
+				currentParam += string(params[i])
+			}
+		default:
+			currentParam += string(params[i])
 		}
-		currentParam += string(params[i])
 
-		if bracketCount == 0 {
+		if i == len(params)-1 {
 			parameterExprs = append(parameterExprs, currentParam)
 			break
 		}

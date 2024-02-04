@@ -79,12 +79,15 @@ func (F Function) transpile() string {
 	transpiled += F.identifier
 	transpiled += "("
 
-	for _, p := range F.parameters {
+	for i, p := range F.parameters {
 		transpiled += p.identifier
 		if p.dataType != Float {
 			transpiled += " " + p.dataType.String()
 		} else {
 			transpiled += " " + p.dataType.String() + "64"
+		}
+		if i != len(F.parameters)-1 {
+			transpiled += ", "
 		}
 	}
 

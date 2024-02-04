@@ -2,34 +2,47 @@ package main
 
 import "fmt"
 
-func fibonacci(n int) int {
-	var to_return int = 1
-	if n > 2 {
-		to_return = fibonacci(n-1) + fibonacci(n-2)
+func helper(n int, divisor int, previous int) bool {
+	var to_return bool = false
+	if (previous + divisor) > n {
+		to_return = false
+	} else if (previous + divisor) == n {
+		to_return = true
+	} else {
+		to_return = helper(n, divisor, previous+divisor)
 	}
 	return to_return
 }
 
-func factorial(x int) int {
-	var to_return int = 1
-	if x > 1 {
-		to_return = x * factorial(x-1)
+func next_divisor(n int, divisor int) int {
+	var to_return int = 0
+	if helper(n, divisor, 0) {
+		to_return = divisor
+	} else {
+		to_return = next_divisor(n, divisor+1)
 	}
 	return to_return
 }
 
-func exp2(x int) int {
-	var to_return int = 1
-	if x > 0 {
-		to_return = 2 * exp2(x-1)
+func divide(n int) int {
+	var to_return int = 0
+	if n == 1 {
+		fmt.Println(n)
+	} else {
+		var d int = next_divisor(n, 2)
+		fmt.Println(d)
+		var divided int = n / d
+		var res int = divide(divided)
+		to_return = res
+
 	}
 	return to_return
-}
-
-func celsius_to_fahrenheit(temp float64) float64 {
-	return temp*1.8 + 32.0
 }
 
 func main() {
-	fmt.Print("hello world")
+	var num_to_factorise int = 228944
+	var res int = divide(num_to_factorise)
+	if res == -1 {
+		fmt.Print(res)
+	}
 }

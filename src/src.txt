@@ -1,32 +1,43 @@
-function fibonacci(n: int) -> int = {
-  let mut to_return: int = 1
-  if n > 2 {
-    to_return = fibonacci(n-1) + fibonacci(n-2)
+function helper(n: int, divisor: int, previous: int) -> bool = {
+  let mut to_return: bool = false
+  if (previous + divisor) > n {
+    to_return = false
+  } else if (previous + divisor) == n {
+    to_return = true
+  } else {
+    to_return = helper(n, divisor, previous + divisor)
   }
   to_return
 }
 
-function factorial(x: int) -> int = {
-  let mut to_return: int = 1
-  if x > 1 {
-    to_return = x * factorial(x-1)
+function next_divisor(n: int, divisor: int) -> int = {
+  let mut to_return: int = 0
+  if helper(n, divisor, 0) {
+    to_return = divisor
+  } else {
+    to_return = next_divisor(n, divisor+1)
   }
   to_return
 }
 
-function exp2(x: int) -> int = {
-  let mut to_return: int = 1
-  if x > 0 {
-    to_return = 2 * exp2(x-1)
+function divide(n: int) -> int = {
+  let mut to_return: int = 0
+  if n == 1 {
+    println!(n)
+  } else {
+    let d: int = next_divisor(n, 2)
+    println!(d)
+    let divided: int = n / d
+    let res: int = divide(divided)
+    to_return = res
   }
   to_return
-}
-
-function celsius_to_fahrenheit(temp: float) -> float = {
-  temp * 1.8 + 32.0
 }
 
 function main() -> IO = {
-  print!("hello world")
+  let num_to_factorise: int = 228944
+  let res: int = divide(num_to_factorise)
+  if res == -1 {
+    print!(res)
+  }
 }
-
