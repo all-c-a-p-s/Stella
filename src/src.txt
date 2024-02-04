@@ -1,4 +1,4 @@
-print!(2)
+print!(3)
 
 function fibonacci(n: int) -> int = {
   let mut to_return: int = 1
