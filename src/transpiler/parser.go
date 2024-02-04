@@ -1212,7 +1212,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		case MacroItem:
 			macro := parseMacro(lines[n], lineNum, &newScope)
 			if newScope.scopeType == Global {
-				panic(fmt.Sprintf("Line %d: fonud unexpected macro in global scope", n))
+				panic(fmt.Sprintf("Line %d: found unexpected macro in global scope", n))
 			}
 			newScope.items = append(newScope.items, macro)
 
