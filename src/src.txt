@@ -1,5 +1,3 @@
-print!(3)
-
 function fibonacci(n: int) -> int = {
   let mut to_return: int = 1
   if n > 2 {
@@ -29,6 +27,6 @@ function celsius_to_fahrenheit(temp: float) -> float = {
 }
 
 function main() -> IO = {
-  print!(2)
+  print!("hello world")
 }
 

@@ -209,6 +209,19 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 	// TODO: account for string literal while parsing tokens
 	for i := 0; i < len(expression); i++ {
 		switch expression[i] { // split on operators and spaces
+		case '"':
+			var stringLiteral string
+			for j := i; j < len(expression); j++ {
+				stringLiteral += string(expression[j])
+				if expression[j] == '"' && j != i {
+					i = j
+					break
+				}
+				if j == len(expression)-1 {
+					panic(fmt.Sprintf("Line %d: unterminated string literal in expression", lineNum+1))
+				}
+			}
+			parsed = append(parsed, stringLiteral)
 		case '(', '{':
 			if len(currentItem) != 0 { // parse it as function call, error will arise in parseFunctionCall() if there is one
 				// if currentItem is not empty it must be a function name
