@@ -1,0 +1,31 @@
+let nums: int[3] = [1, 2, 3]
+let foo: int = nums[2]
+
+function fibonacci(n: int) -> int = {
+  let mut to_return: int = 1
+  if n > 2 {
+    to_return = fibonacci(n-1) + fibonacci(n-2)
+  }
+  to_return
+}
+
+function factorial(x: int) -> int = {
+  let mut to_return: int = 1
+  if x > 1 {
+    to_return = x * factorial(x-1)
+  }
+  to_return
+}
+
+function exp2(x: int) -> int = {
+  let mut to_return: int = 1
+  if x > 0 {
+    to_return = 2 * exp2(x-1)
+  }
+  to_return
+}
+
+function celsius_to_fahrenheit(temp: float) -> float = {
+  temp * 1.8 + 32.0
+}
+
