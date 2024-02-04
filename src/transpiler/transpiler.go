@@ -90,9 +90,11 @@ func (F Function) transpile() string {
 
 	transpiled += ")"
 
-	transpiled += " " + F.returnType.String()
-	if F.returnType == Float {
-		transpiled += "64"
+	if F.returnType != IO {
+		transpiled += " " + F.returnType.String()
+		if F.returnType == Float {
+			transpiled += "64"
+		}
 	}
 
 	transpiled += " {"
@@ -128,6 +130,21 @@ func (A ArrayAssignment) transpile() string {
 	transpiled += A.arr.identifier
 	transpiled += " = "
 	transpiled += A.expr.transpile()
+	return transpiled
+}
+
+func (M Macro) transpile() string {
+	var transpiled string
+	switch M.T {
+	case Print:
+		transpiled += "fmt.Print"
+	case Println:
+		transpiled += "fmt.Println"
+	default:
+		panic("macro not supported by transpile()")
+	}
+
+	transpiled += M.value.transpile()
 	return transpiled
 }
 

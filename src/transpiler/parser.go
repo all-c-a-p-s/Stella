@@ -19,6 +19,7 @@ const (
 	SelectionElse
 	ReturnStatement
 	ScopeClose
+	MacroItem
 	Empty
 )
 
@@ -151,7 +152,20 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *Scope) Dec
 	equalsIndex := typeIndex + 1     //"=" must come after type
 
 	id := parseIdentifier(words[identifierIndex], lineNum)
+
+	if _, v := (*currentScope).vars[id]; v {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, f := (*currentScope).functions[id]; f {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, a := (*currentScope).arrays[id]; a {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	}
+
 	expectedType := readType(words[typeIndex], lineNum)
+
+	if expectedType == IO {
+		panic(fmt.Sprintf("Line %d: variables cannot have data type IO", lineNum+1))
+	}
 
 	if words[equalsIndex] != "=" {
 		panic(fmt.Sprintf("Line %d: expected token '=' after type annotation", lineNum))
@@ -444,15 +458,29 @@ func isStatement(line string) bool {
 			assignment = true
 		}
 	}
+
+	for i := 0; i < len(line); i++ {
+		if line[i] == '!' {
+			// macro
+			return true
+		}
+	}
 	return assignment
 }
 
 func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) Expression {
 	// TODO: multi-line expressions inside multi-line expressions (maybe)
 
+	varsCopy := make(map[string]Variable) // used to later restore currenScope.vars to original
+	// so that when variable declarations are actually parsed they don't throw an already declared error
+
+	for k, v := range (*currentScope).vars {
+		varsCopy[k] = v
+	}
+
 	bracketCount := 0
 	exprCount := 0
-	var exprLine int
+	exprLine := -1
 	var expr string
 	for n := lineNum; n < len(lines); n++ {
 		line := lines[n]
@@ -470,8 +498,7 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 			continue
 		}
 		if getItemType(lines[n], n, currentScope) == VariableDeclaration {
-			v := parseVariableDeclaration(lines[n], n, currentScope)
-			(*currentScope).vars[v.v.identifier] = v.v
+			_ = parseVariableDeclaration(lines[n], n, currentScope)
 		}
 		if exprCount >= 1 {
 			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", n+1))
@@ -483,11 +510,23 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 		exprLine = n
 		exprCount++
 	}
-	return parseExpression(expr, exprLine, currentScope)
+	if exprLine == -1 {
+		(*currentScope).vars = varsCopy
+		return Expression{
+			items:    []string{},
+			dataType: IO,
+		}
+	}
+	to_return := parseExpression(expr, exprLine, currentScope)
+	(*currentScope).vars = varsCopy
+	return to_return
 }
 
 func parseParameters(params string, lineNum int) []Variable {
 	fields := strings.Split(params, ",")
+	if fields[0] == "" {
+		return []Variable{}
+	}
 	// will remove the commas
 	var variables []Variable
 	for _, param := range fields {
@@ -501,6 +540,11 @@ func parseParameters(params string, lineNum int) []Variable {
 		}
 		ident := parseIdentifier(words[0], lineNum)
 		T := readType(words[1], lineNum)
+
+		if T == IO {
+			panic(fmt.Sprintf("Line %d: function parameters cannot have type IO", lineNum+1))
+		}
+
 		newP := Variable{
 			identifier: ident,
 			dataType:   T,
@@ -537,6 +581,14 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	identifier := parseIdentifier(string(id)+":", lineNum)
+
+	if _, v := (*currentScope).vars[identifier]; v {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, f := (*currentScope).functions[identifier]; f {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, a := (*currentScope).arrays[identifier]; a {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	}
 
 	var paramsBytes []byte
 	bracketCount := 0
@@ -583,6 +635,11 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	returnType := readType(afterWords[1], lineNum)
+	if returnType == IO {
+		if identifier != "main" {
+			panic(fmt.Sprintf("Line %d: only the main() function can have return type IO", lineNum+1))
+		}
+	}
 
 	if afterWords[2] != "=" {
 		panic(fmt.Sprintf("Line %d: expected equals sign '=' after return type annotation ->", lineNum+1))
@@ -941,6 +998,13 @@ func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 		if !isStatement(line) {
 			return ReturnStatement
 		}
+
+		for i := 0; i < len(line); i++ {
+			if line[i] == '!' {
+				return MacroItem
+			}
+		}
+
 		for _, word := range words {
 			if word == "=" {
 				return assignmentType(line, lineNum, currentScope)
@@ -1042,6 +1106,9 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		switch T {
 		case VariableDeclaration:
 			declaration := parseVariableDeclaration(line, n, &newScope)
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global variables are not allowed in Stella", n))
+			}
 			newScope.items = append(newScope.items, declaration)
 
 		case ArrDeclaration:
@@ -1073,6 +1140,9 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 
 		case VariableAssignment:
 			assignment := parseAssignment(lines, n, &newScope)
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global variables are not allowed in Stella", n))
+			}
 			newScope.items = append(newScope.items, assignment)
 
 		case ArrAssignment:
@@ -1138,6 +1208,10 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			newScope.items = append(newScope.items, subScope)
 			ended := findScopeEnd(lines, n)
 			n = ended - 1
+
+		case MacroItem:
+			macro := parseMacro(lines[n], lineNum, &newScope)
+			newScope.items = append(newScope.items, macro)
 
 		case Empty:
 

@@ -28,6 +28,11 @@ type Location struct {
 	charIndex int
 }
 
+var (
+	packageName string
+	imports     []string
+)
+
 func check(err error) {
 	if err != nil {
 		panic(err)
@@ -112,5 +117,24 @@ func TranspileTarget(path string) string {
 	}
 
 	globalScope := parseScope(lines, 0, Global, nil)
-	return globalScope.transpile()
+	if _, main := globalScope.functions["main"]; !main {
+		panic("Cannot transpile source file with no main() function")
+	}
+
+	transpiled := "package main" + "\n\n"
+
+	importedLibs := make(map[string]struct{})
+	for i := 0; i < len(imports); i++ {
+		importedLibs[imports[i]] = struct{}{}
+	}
+
+	for lib := range importedLibs {
+		transpiled += "import " + string([]byte{34}) + lib + string([]byte{34}) // cast into slices fo gofumpt doesnt give annoying warning lol
+		transpiled += "\n"
+	}
+
+	transpiled += "\n"
+
+	transpiled += globalScope.transpile()
+	return transpiled
 }

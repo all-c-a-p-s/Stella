@@ -79,6 +79,9 @@ func parseArrayType(typeWord string, lineNum int) ArrayType {
 
 	baseT := typeWord[:squareBracketIndex]
 	T := readType(baseT, lineNum)
+	if T == IO {
+		panic(fmt.Sprintf("Line %d: arrays cannot have the data type IO", lineNum+1))
+	}
 
 	dims := typeWord[squareBracketIndex:]
 	bracketCount := 0
@@ -269,6 +272,15 @@ func parseArrayDeclaration(line string, lineNum int, currentScope *Scope) ArrayD
 	expectedType := parseArrayType(words[typeIndex], lineNum)
 
 	id := parseIdentifier(words[identifierIndex], lineNum)
+
+	if _, v := (*currentScope).vars[id]; v {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, f := (*currentScope).functions[id]; f {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, a := (*currentScope).arrays[id]; a {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	}
+
 	if words[equalsIndex] != "=" {
 		panic(fmt.Sprintf("Line %d: expected = sign but found %s", lineNum+1, words[equalsIndex]))
 	}

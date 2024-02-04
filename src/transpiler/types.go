@@ -19,6 +19,7 @@ const (
 	Bool
 	Byte
 	String
+	IO // used as function return type
 )
 
 const (
@@ -47,6 +48,8 @@ func (p primitiveType) String() string {
 		return "byte"
 	case String:
 		return "string"
+	case IO:
+		return "IO"
 	default:
 		panic("Somehow a type not in the enum got passed into primitiveType.String()")
 	}
@@ -71,6 +74,8 @@ func readType(dataType string, lineNum int) primitiveType { // reads data type f
 		return Byte
 	case "string":
 		return String
+	case "IO":
+		return IO
 	default:
 		panic(fmt.Sprintf("Line %d: data type %s is invalid", lineNum+1, dataType))
 	}

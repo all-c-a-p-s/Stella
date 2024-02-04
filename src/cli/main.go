@@ -7,8 +7,8 @@ import (
 )
 
 func main() {
-	var path string
-	fmt.Scanln(&path)
+	var path string = "../src.txt"
+	// fmt.Scanln(&path)
 	transpiled := transpiler.TranspileTarget(path)
 	fmt.Println(transpiled)
 }
