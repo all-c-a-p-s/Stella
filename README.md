@@ -17,7 +17,7 @@ variables in Stella are immutable by default, and can be made mutable using the 
 functions are declared like this:
 
 ```
-function square(x: int) => int = {
+function square(x: int) -> int = {
   x * x
 }
 ```
@@ -57,12 +57,18 @@ if password == "secret123" {
 }
 ```
 
+Single-dimension arrays in Stella are currently supported in Stella, with support for multi-dimensional arrays coming soon.
+
+Arrays can be created like this:
+```
+let nums: int[5] = [1, 2, 3, 4, 5]
+```
+
 ## TODO:
 
-collections are types which can be attributed to variables:
+vectors are arrays of dynamic size (heap allocated):
 
 ```
-let nums: int[5] = [23, 5, 90, 2, 88] --fixed size array
 let names: string[] = ["tim", "sarah", "sam"] --vector of variable size
 ```
 
