@@ -6,7 +6,12 @@ import (
 	"strings"
 )
 
-type itemType int
+type (
+	itemType      int
+	selectionType int
+	charType      int
+	parameterType int
+)
 
 const (
 	VariableDeclaration itemType = iota
@@ -23,11 +28,6 @@ const (
 	Empty
 )
 
-type (
-	selectionType int
-	charType      int
-)
-
 const (
 	If selectionType = iota
 	ElseIf
@@ -39,6 +39,11 @@ const (
 	number
 	underscore
 	other
+)
+
+const (
+	VariableParamenter parameterType = iota
+	ArrayParameter
 )
 
 type Variable struct {
@@ -53,9 +58,12 @@ type Declaration struct {
 	e Expression
 }
 
+// cannot parse array literals into function because of type inference
 type FunctionCall struct {
 	functionName string
 	parameters   []Expression
+	arrays       []Array
+	order        []parameterType
 }
 
 type Operator struct {
@@ -73,9 +81,11 @@ type SelectionStatement struct {
 }
 
 type Function struct {
-	identifier string
-	parameters []Variable
-	returnType primitiveType
+	identifier  string
+	parameters  []Variable
+	arrays      []Array
+	paramsOrder []parameterType
+	returnType  primitiveType
 }
 
 type Expression struct {
@@ -543,13 +553,16 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 	return to_return
 }
 
-func parseParameters(params string, lineNum int) []Variable {
+func parseParameters(params string, lineNum int) ([]Variable, []Array, []parameterType) {
 	fields := strings.Split(params, ",")
 	if fields[0] == "" {
-		return []Variable{}
+		return []Variable{}, []Array{}, []parameterType{}
 	}
 	// will remove the commas
 	var variables []Variable
+	var arrays []Array
+	var paramTypes []parameterType
+
 	for _, param := range fields {
 		words := strings.Fields(param)
 		if len(words) != 2 {
@@ -560,21 +573,40 @@ func parseParameters(params string, lineNum int) []Variable {
 			panic(fmt.Sprintf("Line %d: the last character of the parameter declaration %s is not a colon ':', which is required for a type annotation of the parameter", lineNum+1, words[0]))
 		}
 		ident := parseIdentifier(words[0], lineNum)
-		T := readType(words[1], lineNum)
 
-		if T == IO {
-			panic(fmt.Sprintf("Line %d: function parameters cannot have type IO", lineNum+1))
+		var isArr bool
+		for i := 0; i < len(words[1]); i++ {
+			if words[1][i] == '[' {
+				isArr = true
+			}
 		}
 
-		newP := Variable{
-			identifier: ident,
-			dataType:   T,
-			mut:        false,
+		if isArr {
+			arrT := parseArrayType(words[1], lineNum)
+			newArr := Array{
+				identifier: ident,
+				dataType:   arrT,
+				mut:        false,
+			}
+			arrays = append(arrays, newArr)
+			paramTypes = append(paramTypes, ArrayParameter)
+		} else {
+			T := readType(words[1], lineNum)
+			if T == IO {
+				panic(fmt.Sprintf("Line %d: function parameters cannot have type IO", lineNum+1))
+			}
+			newP := Variable{
+				identifier: ident,
+				dataType:   T,
+				mut:        false,
+			}
+
+			variables = append(variables, newP)
+			paramTypes = append(paramTypes, VariableParamenter)
 		}
-		variables = append(variables, newP)
 
 	}
-	return variables
+	return variables, arrays, paramTypes
 }
 
 func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
@@ -638,10 +670,14 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	pStr := string(paramsBytes[1 : len(paramsBytes)-1])
-	parameters := parseParameters(pStr, lineNum)
+	parameters, arrays, order := parseParameters(pStr, lineNum)
 
 	for _, p := range parameters {
 		(*currentScope).vars[p.identifier] = p
+	}
+
+	for _, arr := range arrays {
+		(*currentScope).arrays[arr.identifier] = arr
 	}
 
 	afterIdent := line[identEnd+1:]
@@ -689,9 +725,11 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	f := Function{
-		parameters: parameters,
-		returnType: returnType,
-		identifier: identifier,
+		parameters:  parameters,
+		arrays:      arrays,
+		paramsOrder: order,
+		returnType:  returnType,
+		identifier:  identifier,
 	}
 
 	(*currentScope).functions[f.identifier] = f
@@ -765,23 +803,47 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 		}
 	}
 
-	if len(parameterExprs) != len(fn.parameters) {
+	if len(parameterExprs) != len(fn.paramsOrder) {
 		panic(fmt.Sprintf("Line %d: function %s takes %d arguments but %d were given", lineNum+1, fn.identifier, len(fn.parameters), len(parameterExprs)))
 	}
 
 	var parameterExpressions []Expression
+	var arrays []Array
 
-	for i := 0; i < len(parameterExprs); i++ {
-		expression := parseExpression(parameterExprs[i], lineNum, currentScope)
-		if expression.dataType != fn.parameters[i].dataType {
-			panic(fmt.Sprintf("Line %d: cannot use expression of type %v as argument of type %v", lineNum+1, expression.dataType.String(), fn.parameters[i].dataType.String()))
+	var variableCount, arrayCount int
+
+	for i := 0; i < len(fn.paramsOrder); i++ {
+		if fn.paramsOrder[i] == VariableParamenter {
+			expression := parseExpression(parameterExprs[i], lineNum, currentScope)
+			if expression.dataType != fn.parameters[variableCount].dataType {
+				panic(fmt.Sprintf("Line %d: cannot use expression of type %v as argument of type %v", lineNum+1, expression.dataType.String(), fn.parameters[i].dataType.String()))
+			}
+			parameterExpressions = append(parameterExpressions, expression)
+			variableCount++
+		} else {
+			arrayExpression := parseArrayExpression(parameterExprs[i], lineNum, currentScope)
+			if arrayExpression.dataType.baseType == fn.arrays[arrayCount].dataType.baseType {
+				if len(arrayExpression.dataType.dimensions) != len(fn.arrays[arrayCount].dataType.dimensions) {
+					panic(fmt.Sprintf("Line %dL expression does not have same number of dimensions as array parameter", lineNum+1))
+				}
+				for i := 0; i < len(arrayExpression.dataType.dimensions); i++ {
+					if arrayExpression.dataType.dimensions[i] != fn.arrays[arrayCount].dataType.dimensions[i] {
+						panic(fmt.Sprintf("Line %d: expression does not have same dimension size as array parameter", lineNum+1))
+					}
+				}
+			} else {
+				panic(fmt.Sprintf("Line %d: expression does not have same base type as array parameter", lineNum+1))
+			}
+			arrays = append(arrays, arrayExpression)
+			arrayCount++
 		}
-		parameterExpressions = append(parameterExpressions, expression)
 	}
 
 	return FunctionCall{
 		functionName: ident,
 		parameters:   parameterExpressions,
+		arrays:       arrays,
+		order:        fn.paramsOrder,
 	}
 }
 
@@ -1094,6 +1156,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		for k, v := range (*parent).functions {
 			newScope.functions[k] = v
 		}
+
+		newScope.arrays = make(map[string]Array)
+		for k, v := range (*parent).arrays {
+			newScope.arrays[k] = v
+		}
 	}
 
 	// NOTE: should be called inluding opening line
@@ -1155,6 +1222,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				subScope.functions[k] = v
 			}
 
+			subScope.arrays = make(map[string]Array)
+			for k, v := range newScope.arrays {
+				subScope.arrays[k] = v
+			}
+
 			fn := parseFunction(lines, n, &subScope)
 			newScope.functions[fn.identifier] = fn
 			newScope.items = append(newScope.items, fn)
@@ -1197,6 +1269,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				subScope.functions[k] = v
 			}
 
+			subScope.arrays = make(map[string]Array)
+			for k, v := range newScope.arrays {
+				subScope.arrays[k] = v
+			}
+
 			ifStatement := parseSelection(n, lines, &subScope)
 			newScope.items = append(newScope.items, ifStatement)
 
@@ -1225,6 +1302,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			subScope.functions = make(map[string]Function)
 			for k, v := range newScope.functions {
 				subScope.functions[k] = v
+			}
+
+			subScope.arrays = make(map[string]Array)
+			for k, v := range newScope.arrays {
+				subScope.arrays[k] = v
 			}
 
 			ifStatement := parseSelection(n, lines, &subScope)

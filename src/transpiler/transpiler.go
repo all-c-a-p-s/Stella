@@ -79,15 +79,34 @@ func (F Function) transpile() string {
 	transpiled += F.identifier
 	transpiled += "("
 
-	for i, p := range F.parameters {
-		transpiled += p.identifier
-		if p.dataType != Float {
-			transpiled += " " + p.dataType.String()
+	var varCount, arrCount int
+
+	for i, t := range F.paramsOrder {
+		if t == VariableParamenter {
+			p := F.parameters[varCount]
+			transpiled += p.identifier
+			if p.dataType != Float {
+				transpiled += " " + p.dataType.String()
+			} else {
+				transpiled += " " + p.dataType.String() + "64"
+			}
+			if i != len(F.paramsOrder)-1 {
+				transpiled += ", "
+			}
+			varCount++
 		} else {
-			transpiled += " " + p.dataType.String() + "64"
-		}
-		if i != len(F.parameters)-1 {
-			transpiled += ", "
+			arr := F.arrays[arrCount]
+			transpiled += arr.identifier
+			transpiled += " "
+			transpiled += "[" + fmt.Sprintf("%d", arr.dataType.dimensions[0]) + "]"
+			transpiled += arr.dataType.baseType.String()
+			if arr.dataType.baseType == Float {
+				transpiled += "64"
+			}
+			if i != len(F.paramsOrder)-1 {
+				transpiled += ", "
+			}
+			arrCount++
 		}
 	}
 

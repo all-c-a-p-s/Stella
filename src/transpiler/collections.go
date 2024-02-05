@@ -47,6 +47,11 @@ type ArrayAssignment struct {
 	expr ArrayValue[primitiveType]
 }
 
+type ArrayExpression struct {
+	stringValue string
+	dataType    ArrayType
+}
+
 func squareBracketEnd(s string, start, lineNum int) int {
 	var bracketCount int
 	for i := start; i < len(s); i++ {
@@ -460,4 +465,13 @@ func parseArrayAssignment(line string, lineNum int, currentScope *Scope) ArrayAs
 		arr:  arr,
 		expr: arrayFound,
 	}
+}
+
+func parseArrayExpression(expr string, lineNum int, currentScope *Scope) Array {
+	// unbelievably easy as this does not need to include array literals
+	trimmed := strings.Trim(expr, " ")
+	if arr, ok := (*currentScope).arrays[trimmed]; ok {
+		return arr
+	}
+	panic(fmt.Sprintf("Line %d: invalid array expression", lineNum+1))
 }
