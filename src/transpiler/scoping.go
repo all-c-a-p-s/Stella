@@ -117,6 +117,8 @@ func TranspileTarget(path string) string {
 		lines = append(lines, scanner.Text())
 	}
 
+	lines = removeComments(lines)
+
 	globalScope := parseScope(lines, 0, Global, nil)
 	if _, main := globalScope.functions["main"]; !main {
 		panic("Cannot transpile source file with no main() function")

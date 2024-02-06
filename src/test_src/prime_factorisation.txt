@@ -1,18 +1,20 @@
-function helper(n: int, divisor: int, previous: int) -> bool = {
+function divisible(n: int, divisor: int, previous: int) -> bool = {
+  // lowest integer factor must always necessarily be a prime
   let mut to_return: bool = false
   if (previous + divisor) > n {
     to_return = false
   } else if (previous + divisor) == n {
     to_return = true
   } else {
-    to_return = helper(n, divisor, previous + divisor)
+    to_return = divisible(n, divisor, previous + divisor)
+    // recursive call with next integer
   }
   to_return
 }
 
 function next_divisor(n: int, divisor: int) -> int = {
   let mut to_return: int = 0
-  if helper(n, divisor, 0) {
+  if divisible(n, divisor, 0) {
     to_return = divisor
   } else {
     to_return = next_divisor(n, divisor+1)
