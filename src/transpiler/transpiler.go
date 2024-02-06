@@ -124,6 +124,13 @@ func (F Function) transpile() string {
 	return transpiled
 }
 
+func (L Loop) transpile() string {
+	transpiled := "for "
+	transpiled += L.condition.transpile()
+	transpiled += " {"
+	return transpiled
+}
+
 func (S SelectionStatement) transpile() string {
 	var transpiled string
 	switch S.selectionType {

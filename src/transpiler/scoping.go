@@ -11,6 +11,7 @@ type ScopeType int
 const (
 	FunctionScope ScopeType = iota
 	SelectionScope
+	LoopScope
 	Global
 )
 

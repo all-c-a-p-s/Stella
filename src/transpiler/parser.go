@@ -22,6 +22,7 @@ const (
 	SelectionIf
 	SelectionElseIf
 	SelectionElse
+	LoopStatement
 	ReturnStatement
 	ScopeClose
 	MacroItem
@@ -1064,6 +1065,8 @@ func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 		return declarationType(line, lineNum)
 	case "if":
 		return SelectionIf
+	case "loop":
+		return LoopStatement
 	case "}":
 		if len(words) == 1 {
 			return ScopeClose
@@ -1290,6 +1293,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				panic(fmt.Sprintf("Line %d: else/else if statements must be preceded by other selection statements", n+1))
 			}
 			// TODO: actually check that previous scope's type is SelectionScope
+			// not urgent to fix as some kind of error message will get thrown
 
 			subScope := Scope{}
 
@@ -1313,6 +1317,33 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			newScope.items = append(newScope.items, ifStatement)
 
 			subScope = parseScope(lines, n, SelectionScope, &subScope)
+			newScope.items = append(newScope.items, subScope)
+			ended := findScopeEnd(lines, n)
+			n = ended - 1
+
+		case LoopStatement:
+			subScope := Scope{}
+
+			// copy manually as maps are reference types
+			subScope.vars = make(map[string]Variable)
+			for k, v := range newScope.vars {
+				subScope.vars[k] = v
+			}
+
+			subScope.functions = make(map[string]Function)
+			for k, v := range newScope.functions {
+				subScope.functions[k] = v
+			}
+
+			subScope.arrays = make(map[string]Array)
+			for k, v := range newScope.arrays {
+				subScope.arrays[k] = v
+			}
+
+			loop := parseLoop(lines[n], n, &subScope)
+			newScope.items = append(newScope.items, loop)
+
+			subScope = parseScope(lines, n, LoopScope, &subScope)
 			newScope.items = append(newScope.items, subScope)
 			ended := findScopeEnd(lines, n)
 			n = ended - 1
