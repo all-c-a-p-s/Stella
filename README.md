@@ -34,7 +34,7 @@ or multi-line expressions evaluating to a single value:
 {
   let a: int = 5
   let b: int = 10
-  a * b --expression evaluates to this value
+  a * b // expression evaluates to this value
 }
 ```
 
@@ -57,12 +57,25 @@ if password == "secret123" {
 }
 ```
 
-Single-dimension arrays in Stella are currently supported in Stella, with support for multi-dimensional arrays coming soon.
+Loops in Stella use the ```loop``` keyword with a boolean condition like this
+```
+let mut i: int = 0
+loop i < 10 {
+  println!(i)
+  i = i + 1
+}
+```
 
-Arrays can be created like this:
+Arrays in Stella are collections of primitive data types. They can be created like this:
 ```
 let nums: int[5] = [1, 2, 3, 4, 5]
 ```
+
+and indexed like this
+```
+let first: int = nums[0]
+```
+
 
 ## TODO:
 
@@ -70,6 +83,7 @@ vectors are arrays of dynamic size (heap allocated):
 
 ```
 let names: string[] = ["tim", "sarah", "sam"] --vector of variable size
+names = append(names, "sid")
 ```
 
 the aim is that the simple and consistent syntax should make Stella an approachable and interesting language
