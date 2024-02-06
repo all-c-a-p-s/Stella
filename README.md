@@ -82,7 +82,7 @@ let first: int = nums[0]
 vectors are arrays of dynamic size (heap allocated):
 
 ```
-let names: string[] = ["tim", "sarah", "sam"] --vector of variable size
+let names: string[] = ["tim", "sarah", "sam"] // vector of variable size
 names = append(names, "sid")
 ```
 
