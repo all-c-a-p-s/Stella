@@ -1292,8 +1292,25 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			if typeOfItem(newScope.items[len(newScope.items)-1]) != "Scope" {
 				panic(fmt.Sprintf("Line %d: else/else if statements must be preceded by other selection statements", n+1))
 			}
-			// TODO: actually check that previous scope's type is SelectionScope
-			// not urgent to fix as some kind of error message will get thrown
+
+			scopeCount := -1
+			for i := n; i >= 0; i-- {
+				line := lines[i]
+				for j := 0; j < len(line); j++ {
+					switch line[j] {
+					case '{':
+						scopeCount++
+					case '}':
+						scopeCount--
+					}
+				}
+				if scopeCount == 0 {
+					fmt.Println(i)
+					if getItemType(lines[i], i, &newScope) != SelectionIf {
+						panic(fmt.Sprintf("Line %d: else/else if statements must be preceded by if statements", n+1))
+					}
+				}
+			}
 
 			subScope := Scope{}
 
