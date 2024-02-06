@@ -82,7 +82,7 @@ func (F Function) transpile() string {
 	var varCount, arrCount int
 
 	for i, t := range F.paramsOrder {
-		if t == VariableParamenter {
+		if t == VariableParameter {
 			p := F.parameters[varCount]
 			transpiled += p.identifier
 			if p.dataType != Float {

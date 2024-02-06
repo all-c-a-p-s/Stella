@@ -43,7 +43,7 @@ const (
 )
 
 const (
-	VariableParamenter parameterType = iota
+	VariableParameter parameterType = iota
 	ArrayParameter
 )
 
@@ -465,7 +465,7 @@ func checkBrackets(bracket, previous, next string, lineNum int) {
 }
 
 func isStatement(line string) bool {
-	// doesn't need to check if statements are syntactically valis
+	// doesn't need to check if statements are syntactically valid
 	// just determines whether ot not they are statements
 	words := strings.Fields(line)
 	if len(words) == 0 {
@@ -503,7 +503,7 @@ func isStatement(line string) bool {
 func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) Expression {
 	// TODO: multi-line expressions inside multi-line expressions (maybe)
 
-	varsCopy := make(map[string]Variable) // used to later restore currenScope.vars to original
+	varsCopy := make(map[string]Variable) // used to later restore currentScope.vars to original
 	// so that when variable declarations are actually parsed they don't throw an already declared error
 
 	for k, v := range (*currentScope).vars {
@@ -603,7 +603,7 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []paramet
 			}
 
 			variables = append(variables, newP)
-			paramTypes = append(paramTypes, VariableParamenter)
+			paramTypes = append(paramTypes, VariableParameter)
 		}
 
 	}
@@ -814,7 +814,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 	var variableCount, arrayCount int
 
 	for i := 0; i < len(fn.paramsOrder); i++ {
-		if fn.paramsOrder[i] == VariableParamenter {
+		if fn.paramsOrder[i] == VariableParameter {
 			expression := parseExpression(parameterExprs[i], lineNum, currentScope)
 			if expression.dataType != fn.parameters[variableCount].dataType {
 				panic(fmt.Sprintf("Line %d: cannot use expression of type %v as argument of type %v", lineNum+1, expression.dataType.String(), fn.parameters[i].dataType.String()))
@@ -1294,7 +1294,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			}
 
 			scopeCount := -1
-			for i := n; i >= 0; i-- {
+			for i := n - 1; i >= 0; i-- {
 				line := lines[i]
 				for j := 0; j < len(line); j++ {
 					switch line[j] {
@@ -1305,10 +1305,10 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 					}
 				}
 				if scopeCount == 0 {
-					fmt.Println(i)
 					if getItemType(lines[i], i, &newScope) != SelectionIf {
 						panic(fmt.Sprintf("Line %d: else/else if statements must be preceded by if statements", n+1))
 					}
+					break
 				}
 			}
 

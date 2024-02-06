@@ -62,7 +62,7 @@ func findScopeEnd(lines []string, begin int) int {
 }
 
 func findBracketEnd(bracketType byte, lines []string, lineNum int, charIndex int) Location {
-	// should be called wher lineNum and charIndex are the location of the character operning the brackets
+	// should be called where lineNum and charIndex are the location of the character opening the brackets
 	// this means that it will become 1 on the first character
 	bracketCount := 0
 	var closingBracket byte

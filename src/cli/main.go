@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	var path string = "../test_src/loop_test.txt"
+	var path string = "../test_src/prime_factorisation.txt"
 	// fmt.Scanln(&path)
 	transpiled := transpiler.TranspileTarget(path)
 	f, err := os.Create("../../test/main.go")
