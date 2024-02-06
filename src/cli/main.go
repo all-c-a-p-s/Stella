@@ -11,6 +11,7 @@ func main() {
 	var path string = "../test_src/prime_factorisation.txt"
 	// fmt.Scanln(&path)
 	transpiled := transpiler.TranspileTarget(path)
+	formatted := format(transpiled, 2)
 	f, err := os.Create("../../test/main.go")
 	if err != nil {
 		panic("error creating file")
@@ -23,7 +24,7 @@ func main() {
 		}
 	}(f)
 
-	fileSize, err := f.WriteString(transpiled)
+	fileSize, err := f.WriteString(formatted)
 	if err != nil {
 		panic("error writing to file")
 	}
