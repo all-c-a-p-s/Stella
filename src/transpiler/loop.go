@@ -9,6 +9,18 @@ type Loop struct {
 	condition Expression
 }
 
+type BreakType int
+
+const (
+	Break BreakType = iota
+	Continue
+)
+
+// break must be only token on the line
+type BreakStatement struct {
+	T BreakType
+}
+
 func parseLoop(line string, lineNum int, currentScope *Scope) Loop {
 	words := strings.Fields(line)
 	if words[0] != "loop" {
@@ -38,5 +50,24 @@ func parseLoop(line string, lineNum int, currentScope *Scope) Loop {
 	}
 	return Loop{
 		condition: expressionFound,
+	}
+}
+
+func parseBreak(line string, lineNum int) BreakStatement {
+	words := strings.Fields(line)
+	if len(words) != 1 {
+		panic(fmt.Sprintf("Line %d: break statements must be the only token on the line", lineNum+1))
+	}
+	switch words[0] {
+	case "break":
+		return BreakStatement{
+			T: Break,
+		}
+	case "continue":
+		return BreakStatement{
+			T: Continue,
+		}
+	default:
+		panic(fmt.Sprintf("Line %d: found break statement with invalid keyword %s", lineNum+1, words[0]))
 	}
 }

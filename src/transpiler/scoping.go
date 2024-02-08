@@ -19,6 +19,7 @@ type Scope struct {
 	vars      map[string]Variable
 	functions map[string]Function
 	arrays    map[string]Array
+	parent    *Scope
 	items     []Transpileable
 	scopeType ScopeType
 }

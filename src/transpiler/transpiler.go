@@ -131,6 +131,16 @@ func (L Loop) transpile() string {
 	return transpiled
 }
 
+func (B BreakStatement) transpile() string {
+	switch B.T {
+	case Break:
+		return "break"
+	case Continue:
+		return "continue"
+	}
+	panic("should be literally impossible for transpiler to ever panic here lol")
+}
+
 func (S SelectionStatement) transpile() string {
 	var transpiled string
 	switch S.selectionType {

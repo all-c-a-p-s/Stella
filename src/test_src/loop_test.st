@@ -3,5 +3,8 @@ function main() -> IO = {
   loop i < 10 {
     println!(i)
     i = i + 1
+    if i == 9 {
+      continue
+    }
   }
 }

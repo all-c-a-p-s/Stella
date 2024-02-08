@@ -23,6 +23,7 @@ const (
 	SelectionElseIf
 	SelectionElse
 	LoopStatement
+	LoopBreakStatement
 	ReturnStatement
 	ScopeClose
 	MacroItem
@@ -1067,6 +1068,8 @@ func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 		return SelectionIf
 	case "loop":
 		return LoopStatement
+	case "break", "continue":
+		return LoopBreakStatement
 	case "}":
 		if len(words) == 1 {
 			return ScopeClose
@@ -1146,6 +1149,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		functions: make(map[string]Function),
 		scopeType: scopeType,
 		items:     []Transpileable{},
+		parent:    parent,
 	}
 
 	if parent != nil {
@@ -1235,6 +1239,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			newScope.items = append(newScope.items, fn)
 
 			subScope = parseScope(lines, n, FunctionScope, &subScope)
+			// kinda scuffed but I don't think this causes any problems
 			newScope.items = append(newScope.items, subScope)
 			ended := findScopeEnd(lines, n)
 			n = ended - 1
@@ -1280,7 +1285,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			ifStatement := parseSelection(n, lines, &subScope)
 			newScope.items = append(newScope.items, ifStatement)
 
-			subScope = parseScope(lines, n, SelectionScope, &subScope)
+			subScope = parseScope(lines, n, SelectionScope, &newScope)
 			newScope.items = append(newScope.items, subScope)
 			ended := findScopeEnd(lines, n)
 			n = ended - 1
@@ -1333,7 +1338,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			ifStatement := parseSelection(n, lines, &subScope)
 			newScope.items = append(newScope.items, ifStatement)
 
-			subScope = parseScope(lines, n, SelectionScope, &subScope)
+			subScope = parseScope(lines, n, SelectionScope, &newScope)
 			newScope.items = append(newScope.items, subScope)
 			ended := findScopeEnd(lines, n)
 			n = ended - 1
@@ -1360,10 +1365,32 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			loop := parseLoop(lines[n], n, &subScope)
 			newScope.items = append(newScope.items, loop)
 
-			subScope = parseScope(lines, n, LoopScope, &subScope)
+			subScope = parseScope(lines, n, LoopScope, &newScope)
 			newScope.items = append(newScope.items, subScope)
 			ended := findScopeEnd(lines, n)
 			n = ended - 1
+
+		case LoopBreakStatement:
+			b := parseBreak(lines[n], n)
+			newScope.items = append(newScope.items, b)
+
+			currentScope := newScope
+
+			// check that break statement is inside at least one loop
+
+			for {
+				if currentScope.scopeType == Global {
+					panic(fmt.Sprintf("Line %d: found break/continue statement not inside any loop", lineNum+1))
+				} else if currentScope.scopeType == LoopScope {
+					break
+				}
+				if currentScope.parent == nil {
+					panic(fmt.Sprintf("Line %d: found break/continue statement not inside any loop", lineNum+1))
+				} else if (*currentScope.parent).scopeType == LoopScope {
+					break
+				}
+				currentScope = *currentScope.parent
+			}
 
 		case MacroItem:
 			macro := parseMacro(lines[n], lineNum, &newScope)
