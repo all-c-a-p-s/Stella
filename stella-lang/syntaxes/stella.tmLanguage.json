@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Stella",
+  "patterns": [
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.stella",
+          "match": "\\b(if|else|loop|function|let|mut|break|continue)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.stella",
+      "begin": "\"",
+      "end": "\""
+    }
+  },
+  "scopeName": "source.stella"
+}
