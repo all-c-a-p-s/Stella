@@ -2,14 +2,51 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Stella",
   "patterns": [
-    {
-      "include": "#keywords"
-    },
-    {
-      "include": "#strings"
-    }
+    { "include": "#statement" },
+    { "include": "#expression" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#type" }
   ],
   "repository": {
+    "type": {
+      "patterns": [
+        {
+          "name": "storage.type",
+          "match": "\\b(int|float|bool|string|byte)\\b"
+        }
+      ]
+    },
+    "statement": {
+      "patterns": [
+        { "include": "#statement-keyword" },
+        { "include": "#assignment-operator" }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.stella",
+          "match": "//.*"
+        }
+      ]
+    },
+    "statement-keyword": {
+      "patterns": [
+        {
+          "name": "storage.type.function.stella",
+          "match": "\\b(function)\\b"
+        },
+        {
+          "name": "keyword.control.flow.stella",
+          "match": "\\b(if|else|loop|break|continue)\\b"
+        },
+        {
+          "name": "storage.modifier.declaration.stella",
+          "match": "\\b(let|mut)\\b"
+        }
+      ]
+    },
     "keywords": {
       "patterns": [
         {
@@ -18,10 +55,70 @@
         }
       ]
     },
+    "assignment-operator": {
+      "name": "keyword.operator.assignment.stella",
+      "match": "\\="
+    },
+    "expression-bare": {
+      "patterns": [
+        { "include": "#literal" },
+        { "include": "#illegal-names" },
+        { "include": "#operator" },
+        { "include": "#round-braces" },
+        { "include": "#builtin-functions" }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#expression-bare" }
+      ]
+    },
+    "literal": {
+      "patterns": [
+        { "name": "constant.language.stella", "match": "\\b(true|false)\\b" },
+        { "include": "#number" }
+      ]
+    },
+    "number": {
+      "name": "constant.numeric.stella",
+      "patterns": [
+        { "include": "#number-dec" },
+        { "name": "invalid.illegal.name.stella", "match": "\\b[0-9]+\\w+" }
+      ]
+    },
+    "number-dec": {
+      "name": "constant.numeric.dec.stella",
+      "match": "(?<![\\w\\.])[0-9](_?[0-9])*\\b"
+    },
     "strings": {
       "name": "string.quoted.double.stella",
       "begin": "\"",
       "end": "\""
+    },
+    "builtin-functions": {
+      "patterns": [
+        { "include": "#illegal-names" },
+        {
+          "name": "support.function.builtin.stella",
+          "match": "\\b(println|print)\\b"
+        }
+      ]
+    },
+    "round-braces": {
+      "begin": "(\\()",
+      "end": "(\\))",
+      "beginCaptures": {
+        "1": { "name": "punctuation.parenthesis.begin.stella" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.parenthesis.end.stella" }
+      },
+      "patterns": [{ "include": "#expression" }]
+    },
+    "illegal-names": {
+      "name": "keyword.control.flow.stella",
+      "match": "\\b(function | else | for | if | break | continue | let | mut | loop )\\b"
     }
   },
   "scopeName": "source.stella"

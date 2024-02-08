@@ -1,8 +1,10 @@
 {
+  "publisher": "StellaLang",
   "name": "stella-lang",
   "displayName": "Stella Lang",
   "description": "Syntax highlighting for the Stella programming language",
-  "version": "0.0.1",
+  "icon": "logo.png",
+  "version": "0.0.5",
   "engines": {
     "vscode": "^1.86.0"
   },
@@ -10,16 +12,25 @@
     "Programming Languages"
   ],
   "contributes": {
-    "languages": [{
-      "id": "stella",
-      "aliases": ["Stella", "stella"],
-      "extensions": [".ste"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "stella",
-      "scopeName": "source.stella",
-      "path": "./syntaxes/stella.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "stella",
+        "aliases": [
+          "Stella",
+          "stella"
+        ],
+        "extensions": [
+          ".ste"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "stella",
+        "scopeName": "source.stella",
+        "path": "./syntaxes/stella.tmLanguage.json"
+      }
+    ]
   }
 }
