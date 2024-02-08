@@ -8,7 +8,7 @@
 
 ### VSCode Extension:
 
-A VSCode extension has been developed to support syntax highlighting: ([Stella-Lang](https://marketplace.visualstudio.com/items?itemName=StellaLang.stella-lang))
+I made a syntax highlighter for VSCode, not perfect but should be useful if you want to try out the language: ([Stella-Lang](https://marketplace.visualstudio.com/items?itemName=StellaLang.stella-lang))
 
 ### Documentation:
 
