@@ -6,6 +6,12 @@
 - to include features making it easy to write bug-free code
 - to be fast, with similar performance to the garbage-collected Go (which it currently transpiles to)
 
+### VSCode Extension:
+
+A VSCode extension has been developed to support syntax highlighting: ([Stella-Lang](https://marketplace.visualstudio.com/items?itemName=StellaLang.stella-lang))
+
+### Documentation:
+
 variables are declared using the syntax
 
 ```
@@ -57,7 +63,8 @@ if password == "secret123" {
 }
 ```
 
-Loops in Stella use the ```loop``` keyword with a boolean condition like this
+Loops in Stella use the `loop` keyword with a boolean condition like this
+
 ```
 let mut i: int = 0
 loop i < 10 {
@@ -67,15 +74,16 @@ loop i < 10 {
 ```
 
 Arrays in Stella are collections of primitive data types. They can be created like this:
+
 ```
 let nums: int[5] = [1, 2, 3, 4, 5]
 ```
 
 and indexed like this
+
 ```
 let first: int = nums[0]
 ```
-
 
 ## TODO:
 
