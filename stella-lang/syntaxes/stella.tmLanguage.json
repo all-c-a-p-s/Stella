@@ -2,25 +2,42 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Stella",
   "patterns": [
-    { "include": "#statement" },
-    { "include": "#expression" },
-    { "include": "#strings" },
-    { "include": "#keywords" },
-    { "include": "#type" }
+    {
+      "include": "#statement"
+    },
+    {
+      "include": "#expression"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#type"
+    }
   ],
   "repository": {
     "type": {
       "patterns": [
         {
           "name": "storage.type",
-          "match": "\\b(int|float|bool|string|byte)\\b"
+          "match": "\\b(int|float|bool|string|byte)"
         }
       ]
     },
     "statement": {
       "patterns": [
-        { "include": "#statement-keyword" },
-        { "include": "#assignment-operator" }
+        {
+          "include": "#statement-keyword"
+        },
+        {
+          "include": "#assignment-operator"
+        },
+        {
+          "include": "#function-declaration"
+        }
       ]
     },
     "comments": {
@@ -61,30 +78,57 @@
     },
     "expression-bare": {
       "patterns": [
-        { "include": "#literal" },
-        { "include": "#illegal-names" },
-        { "include": "#operator" },
-        { "include": "#round-braces" },
-        { "include": "#builtin-functions" }
+        {
+          "include": "#literal"
+        },
+        {
+          "include": "#illegal-names"
+        },
+        {
+          "include": "#operator"
+        },
+        {
+          "include": "#round-braces"
+        },
+        {
+          "include": "#builtin-functions"
+        },
+        {
+          "include": "#function-call"
+        }
       ]
     },
     "expression": {
       "patterns": [
-        { "include": "#comments" },
-        { "include": "#expression-bare" }
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#expression-bare"
+        }
       ]
     },
     "literal": {
       "patterns": [
-        { "name": "constant.language.stella", "match": "\\b(true|false)\\b" },
-        { "include": "#number" }
+        {
+          "name": "constant.language.stella",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "include": "#number"
+        }
       ]
     },
     "number": {
       "name": "constant.numeric.stella",
       "patterns": [
-        { "include": "#number-dec" },
-        { "name": "invalid.illegal.name.stella", "match": "\\b[0-9]+\\w+" }
+        {
+          "include": "#number-dec"
+        },
+        {
+          "name": "invalid.illegal.name.stella",
+          "match": "\\b[0-9]+\\w+"
+        }
       ]
     },
     "number-dec": {
@@ -96,12 +140,125 @@
       "begin": "\"",
       "end": "\""
     },
+    "function-declaration": {
+      "name": "meta.function.stella",
+      "begin": "\\s*(function)\\s+([[:alpha:]_][[:word:]]*\\()",
+      "end": "{",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.type.function.stella"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#function-declaration-name"
+        },
+        {
+          "include": "#parameters"
+        }
+      ]
+    },
+    "function-declaration-name": {
+      "patterns": [
+        {
+          "include": "#illegal-names"
+        },
+        {
+          "name": "entity.name.function.stella",
+          "match": "\\b([[:alpha:]_]\\w*)\\b"
+        }
+      ]
+    },
+    "parameters": {
+      "name": "meta.function.parameters.stella",
+      "begin": "(\\()",
+      "end": "(\\))",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.parameters.begin.stella"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.parameters.end.stella"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#illegal-names"
+        },
+        {
+          "match": "(([[:word:]]):\\s+(int|float|bool|string|byte)((,|))))+",
+          "captures": {
+            "1": {
+              "name": "variable.parameter.function.language.stella"
+            },
+            "2": {
+              "name": "punctuation.seperator.parameters.stella"
+            }
+          }
+        }
+      ]
+    },
+    "function-call": {
+      "name": "meta.function-call.stella",
+      "begin": "\\b(?=([[:alpha:]_]\\w*)\\s*(\\())",
+      "end": "(\\))",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.arguments.end.stella"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#function-name"
+        },
+        {
+          "include": "#function-arguments"
+        }
+      ]
+    },
+    "function-arguments": {
+      "begin": "(\\()",
+      "end": "(?=\\))(?!\\)\\s*\\()",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.arguments.begin.stella"
+        }
+      },
+      "contentName": "meta.function-call.arguments.stella",
+      "patterns": [
+        {
+          "name": "punctuation.seperator.arguments.stella",
+          "match": "(,)"
+        },
+        {
+          "include": "#illegal-names"
+        },
+        {
+          "include": "#expression"
+        },
+        {
+          "match": "\\s*(\\))\\s*(\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.arguments.end.stella"
+            },
+            "2": {
+              "name": "punctuation.definition.arguments.begin.stella"
+            }
+          }
+        }
+      ]
+    },
     "builtin-functions": {
       "patterns": [
-        { "include": "#illegal-names" },
+        {
+          "include": "#illegal-names"
+        },
         {
           "name": "support.function.builtin.stella",
-          "match": "\\b(println|print)\\b"
+          "match": "\\b(println!|print!)\\b"
         }
       ]
     },
@@ -109,12 +266,20 @@
       "begin": "(\\()",
       "end": "(\\))",
       "beginCaptures": {
-        "1": { "name": "punctuation.parenthesis.begin.stella" }
+        "1": {
+          "name": "punctuation.parenthesis.begin.stella"
+        }
       },
       "endCaptures": {
-        "1": { "name": "punctuation.parenthesis.end.stella" }
+        "1": {
+          "name": "punctuation.parenthesis.end.stella"
+        }
       },
-      "patterns": [{ "include": "#expression" }]
+      "patterns": [
+        {
+          "include": "#expression"
+        }
+      ]
     },
     "illegal-names": {
       "name": "keyword.control.flow.stella",
