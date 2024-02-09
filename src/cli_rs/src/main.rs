@@ -1,7 +1,13 @@
+use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
+use std::str;
 use std::{env, fs};
+
+use crate::error_parser::parse_error;
+
+pub mod error_parser;
 
 #[derive(Debug)]
 struct Args {
@@ -30,7 +36,7 @@ impl Args {
     }
 }
 
-fn transpile(args: &Args) -> String {
+fn transpile(args: &Args) -> Result<String, String> {
     if args.command != "tp" {
         panic!("invalid command")
     }
@@ -48,14 +54,26 @@ fn transpile(args: &Args) -> String {
             .output()
             .expect("failed to execute process")
     };
-    String::from_utf8(output.stdout).expect("output not valid UTF-8 string")
+    if output.stdout.is_empty() {
+        if output.stderr.is_empty() {
+            panic!("both output.stdout and output.stderr empty")
+        }
+        let msg: String = String::from_utf8(output.stderr).expect("failed to get error message");
+        return Err(msg);
+    }
+    Ok(String::from_utf8(output.stdout).expect("output not valid UTF-8 string"))
 }
+
+//TODO: check that it transpiles successfully and handle transpiler errors
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let command_args = Args::new(args);
 
-    let transpiled: String = transpile(&command_args);
+    let transpiled = match transpile(&command_args) {
+        Ok(tp) => tp,
+        Err(msg) => panic!("Transpiler Error: {:?}", parse_error(msg)),
+    };
 
     let already_exists = File::open(&command_args.target);
     if already_exists.is_ok() {
