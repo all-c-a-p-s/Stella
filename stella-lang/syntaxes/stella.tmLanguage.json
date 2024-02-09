@@ -142,7 +142,7 @@
     },
     "function-declaration": {
       "name": "meta.function.stella",
-      "begin": "\\s*(function)\\s+([[:alpha:]_][[:word:]]*\\()",
+      "begin": "\\s*(function)\\s+(?=[[:alpha:]_][[:word:]]*\\s*\\()",
       "end": "{",
       "beginCaptures": {
         "1": {
@@ -188,7 +188,7 @@
           "include": "#illegal-names"
         },
         {
-          "match": "(([[:word:]]):\\s+(int|float|bool|string|byte)((,|))))+",
+          "match": "(?x) ([[:alpha:]_]\\w*):\\s+(int|float|bool|string|byte)\\s* (?: (,) | (?=[)\n]))",
           "captures": {
             "1": {
               "name": "variable.parameter.function.language.stella"
@@ -215,6 +215,15 @@
         },
         {
           "include": "#function-arguments"
+        }
+      ]
+    },
+    "function-name": {
+      "patterns": [
+        { "include": "#builtin-functions" },
+        {
+          "name": "entity.name.function.stella",
+          "match": "\\b([[:alpha:]_]\\w*)\\b"
         }
       ]
     },
