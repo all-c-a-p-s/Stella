@@ -1,6 +1,15 @@
 # Stella-nvim
 
-Syntax highlighting plugin for [Stella](https://github.com/all-c-a-p-s/Stella) programming language
+Syntax highlighting plugin for the [Stella](https://github.com/all-c-a-p-s/Stella) programming language
+
+##### Tokyonight:
+![Demo 1](demo1.PNG)
+
+##### OneDark:
+![Demo 2](demo2.PNG)
+
+##### Gruvbox:
+![Demo 3](demo3.PNG)
 
 ## Installation
 

@@ -267,7 +267,7 @@
         },
         {
           "name": "support.function.builtin.stella",
-          "match": "\\b(println!|print!)\\b"
+          "match": "\\b(println|print)\\b"
         }
       ]
     },

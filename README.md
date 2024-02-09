@@ -6,6 +6,8 @@
 - to include features making it easy to write bug-free code
 - to be fast, with similar performance to the garbage-collected Go (which it currently transpiles to)
 
+![demo](demo.PNG)
+
 ## Support:
 
 I made some syntax highlighting plugins. They are not perfect, but should be useful for people who want to try out the language.

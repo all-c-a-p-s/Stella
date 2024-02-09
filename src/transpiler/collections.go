@@ -388,11 +388,7 @@ Loop:
 			bracketCount--
 
 		default:
-			if _, ok := numbers()[string(dims[i])]; ok {
-				currentNumStr += string(dims[i])
-			} else {
-				panic(fmt.Sprintf("Line %d: unexpected character %s in array indexing", lineNum+1, string(dims[i])))
-			}
+			currentNumStr += string(dims[i])
 		}
 	}
 

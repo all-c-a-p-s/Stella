@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	var path string = "../test_src/prime_factorisation.st"
+	var path string = "../test_src/syntax_example.ste"
 	// fmt.Scanln(&path)
 	transpiled := transpiler.TranspileTarget(path)
 	formatted := format(transpiled, 2)

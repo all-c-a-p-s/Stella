@@ -251,6 +251,24 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 			return v.dataType
 		}
 		return getValType(expr[0], lineNum) // not operator, variable or function
+	} else if len(expr) == 2 {
+		// also base case as this can only be unary operator and expression of length 1
+		switch expr[0] {
+		case "-":
+			x := parseExpression(expr[1], lineNum, currentScope)
+			if x.dataType != Int && x.dataType != Float {
+				panic(fmt.Sprintf("Line %d: use of unary operator - with non-numeric data type %v", lineNum+1, x.dataType))
+			}
+			return x.dataType
+		case "!":
+			x := parseExpression(expr[1], lineNum, currentScope)
+			if x.dataType != Bool {
+				panic(fmt.Sprintf("Line %d: use of unary operator - with non-boolean data type %v", lineNum+1, x.dataType))
+			}
+			return Bool
+		default:
+			panic(fmt.Sprintf("Line %d: expressions of length 2 tokens must begin with unary operators - or !", lineNum+1))
+		}
 	}
 	typesFound := make(map[primitiveType]struct{}) // Hashset of all types found in expression
 	previousOperatorIndex := -1                    // index in expression slice where last term ended.
