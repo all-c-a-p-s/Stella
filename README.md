@@ -12,9 +12,9 @@
 
 I made some syntax highlighting plugins. They are not perfect, but should be useful for people who want to try out the language.
 
-NeoVim: [Stella-nvim](https://github.com/all-c-a-p-s/Stella-nvim)
+**NeoVim**: [Stella-nvim](https://github.com/all-c-a-p-s/Stella-nvim)
 
-VSCode: [Stella-Lang](https://marketplace.visualstudio.com/items?itemName=StellaLang.stella-lang)
+**VSCode**: [Stella-Lang](https://marketplace.visualstudio.com/items?itemName=StellaLang.stella-lang)
 
 ## Documentation:
 
