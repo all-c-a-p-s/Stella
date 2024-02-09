@@ -6,11 +6,14 @@
 - to include features making it easy to write bug-free code
 - to be fast, with similar performance to the garbage-collected Go (which it currently transpiles to)
 
-### VSCode Extension:
+## Support:
 
-I made a syntax highlighter for VSCode, not perfect but should be useful if you want to try out the language: ([Stella-Lang](https://marketplace.visualstudio.com/items?itemName=StellaLang.stella-lang))
+I made some syntax highlighting plugins. They are not perfect, but should be useful for people who want to try out the language.
 
-### Documentation:
+NeoVim: [Stella-nvim](https://github.com/all-c-a-p-s/Stella-nvim)
+VSCode: [Stella-Lang](https://marketplace.visualstudio.com/items?itemName=StellaLang.stella-lang)
+
+## Documentation:
 
 variables are declared using the syntax
 
