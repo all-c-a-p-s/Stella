@@ -76,4 +76,10 @@ func TestParseExpression(t *testing.T) {
 	if expr6.dataType != Bool {
 		t.Error("failed ultimate test")
 	}
+
+	tStr := string([]byte{34}) + "foo" + string([]byte{34}) + " + " + string([]byte{34}) + "bar" + string([]byte{34})
+	expr7 := parseExpression(tStr, 0, &testScope)
+	if expr7.dataType != String {
+		t.Error("failed string concatenation test")
+	}
 }

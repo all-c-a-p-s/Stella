@@ -142,7 +142,12 @@ func parseIdentifier(id string, lineNum int) string {
 		panic(fmt.Sprintf("Line %d: Name '%s' is invalid because it is a keyword in Stella", lineNum+1, id))
 	}
 	// no exit conditions triggered, so name must be valid
-	return id[:len(id)-1] // identifier without colon
+	ident := id[:len(id)-1] // identifier without colon
+
+	if _, ok := illegalNames()[ident]; ok {
+		panic(fmt.Sprintf("Line %d: identifier %s is illegal because it is a keyword in either Stella or Go", lineNum+1, ident))
+	}
+	return ident
 }
 
 func parseVariableDeclaration(line string, lineNum int, currentScope *Scope) Declaration {

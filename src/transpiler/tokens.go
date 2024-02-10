@@ -121,3 +121,47 @@ func allKeywords() map[string]struct{} {
 	}
 	return keywords
 }
+
+func illegalNames() map[string]struct{} {
+	return map[string]struct{}{
+		"let":      {},
+		"mut":      {},
+		"loop":     {},
+		"function": {},
+		"float":    {},
+		"if":       {},
+		"else":     {},
+
+		// stella only keywords
+
+		"int":      {},
+		"byte":     {},
+		"bool":     {},
+		"string":   {},
+		"break":    {},
+		"continue": {},
+
+		// keywords in both
+
+		"func":        {},
+		"var":         {},
+		"default":     {},
+		"chan":        {},
+		"switch":      {},
+		"case":        {},
+		"range":       {},
+		"interface":   {},
+		"struct":      {},
+		"type":        {},
+		"const":       {},
+		"goto":        {},
+		"package":     {},
+		"fallthrough": {},
+		"for":         {},
+		"return":      {},
+		"defer":       {},
+		"map":         {},
+
+		// keywords in go
+	}
+}

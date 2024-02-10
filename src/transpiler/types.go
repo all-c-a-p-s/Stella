@@ -312,7 +312,27 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 				panic(fmt.Sprintf("Line %d: Unary operator '!' used before non-boolean value", lineNum+1))
 			}
 			// typesFound[Bool] = struct{}{}
-		case "+", "*", "/": // TODO: make + also work for strings
+		case "+":
+			// handle seperately as it can be used with strings as well
+			previous := previousTerm(expr, operatorIndex, lineNum)
+			next := nextTerm(expr, operatorIndex, lineNum)
+			previousType := expressionType(previous, lineNum, currentScope)
+			nextType := expressionType(next, lineNum, currentScope)
+			if previousType == String && nextType == String {
+				typesFound[String] = struct{}{}
+			} else {
+				if !numericType(previousType) {
+					panic(fmt.Sprintf("Line %d: binary operator '%s' used after non-numeric type %v", lineNum+1, expr[operatorIndex], previousType))
+				}
+				if !numericType(nextType) {
+					panic(fmt.Sprintf("Line %d: binary operator '%s' used before non-numeric type %v", lineNum+1, expr[operatorIndex], nextType))
+				}
+				if previousType != nextType {
+					panic(fmt.Sprintf("Lind %d: binary operator '%s' used with both integer and float values", lineNum+1, expr[operatorIndex]))
+				}
+				typesFound[nextType] = struct{}{}
+			}
+		case "*", "/": // TODO: make + also work for strings
 			previous := previousTerm(expr, operatorIndex, lineNum)
 			next := nextTerm(expr, operatorIndex, lineNum)
 			previousType := expressionType(previous, lineNum, currentScope)
