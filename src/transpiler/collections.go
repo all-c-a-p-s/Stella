@@ -32,8 +32,8 @@ type ArrayValue[T primitiveType] struct {
 }
 
 type ArrayDeclaration struct {
+	expr ArrayExpression
 	arr  Array
-	expr ArrayValue[primitiveType]
 }
 
 type ArrayIndexing struct {
@@ -43,8 +43,8 @@ type ArrayIndexing struct {
 }
 
 type ArrayAssignment struct {
+	expr ArrayExpression
 	arr  Array
-	expr ArrayValue[primitiveType]
 }
 
 type ArrayExpression struct {
@@ -303,18 +303,14 @@ func parseArrayDeclaration(line string, lineNum int, currentScope *Scope) ArrayD
 		panic(fmt.Sprintf("Line %d: found no value assigned to array %s in declaration statement", lineNum+1, id))
 	}
 	expression := strings.Trim(line[equalsCharIndex+1:], " ")
-	arrFound := parseArrayValue[primitiveType](expression, expectedType.baseType, currentScope, lineNum)
+	arrFound := parseArrayExpression(expression, expectedType.baseType, lineNum, currentScope)
 
-	if len(arrFound.children) > 0 {
-		panic(fmt.Sprintf("Line %d: currently elements of arrays can only be primitive types, not arrays", lineNum+1))
+	if arrFound.dataType.baseType != expectedType.baseType {
+		panic(fmt.Sprintf("Line %d: expected array of type %v found array of type %v", lineNum+1, expectedType.baseType, arrFound.dataType.baseType))
 	}
 
-	if arrFound.baseType != expectedType.baseType {
-		panic(fmt.Sprintf("Line %d: expected array of type %v found array of type %v", lineNum+1, expectedType.baseType, arrFound.baseType))
-	}
-
-	if arrFound.length != expectedType.dimensions[0] {
-		panic(fmt.Sprintf("Line %d: expected array of length %d, found array of length %d", lineNum+1, arrFound.length, expectedType.dimensions[0]))
+	if arrFound.dataType.dimensions[0] != expectedType.dimensions[0] {
+		panic(fmt.Sprintf("Line %d: expected array of length %d, found array of length %d", lineNum+1, arrFound.dataType.dimensions[0], expectedType.dimensions[0]))
 	}
 
 	arr := Array{
@@ -452,22 +448,131 @@ func parseArrayAssignment(line string, lineNum int, currentScope *Scope) ArrayAs
 
 	expr := line[exprStart:]
 
-	arrayFound := parseArrayValue[primitiveType](strings.Trim(expr, " "), expectedType, currentScope, lineNum)
-	if arrayFound.baseType != arr.dataType.baseType {
-		panic(fmt.Sprintf("Line %d: attempt to assign array of base type %v to array of base type %v", lineNum+1, arrayFound.baseType, arr.dataType.baseType))
+	arrayExpr := parseArrayExpression(expr, expectedType, lineNum, currentScope)
+
+	if arrayExpr.dataType.baseType != expectedType {
+		panic(fmt.Sprintf("Line %d: attempt tp assign value of base type %v to array of base type %v", lineNum+1, arrayExpr.dataType.baseType, expectedType))
+	}
+
+	if len(arrayExpr.dataType.dimensions) != len(arr.dataType.dimensions) {
+		panic(fmt.Sprintf("Line %d: attempt to assign array value with %d dimensions to array with %d dimensions", lineNum+1, len(arrayExpr.dataType.dimensions), len(arr.dataType.dimensions)))
 	}
 
 	return ArrayAssignment{
 		arr:  arr,
-		expr: arrayFound,
+		expr: arrayExpr,
 	}
 }
 
-func parseArrayExpression(expr string, lineNum int, currentScope *Scope) Array {
-	// unbelievably easy as this does not need to include array literals
+func parseArrayExpression(expr string, expectedType primitiveType, lineNum int, currentScope *Scope) ArrayExpression {
 	trimmed := strings.Trim(expr, " ")
+
+	if trimmed[0] == '[' {
+		T := parseBaseArray(expr, expectedType, currentScope, lineNum)
+		return ArrayExpression{
+			stringValue: expr,
+			dataType: ArrayType{
+				baseType:   T.dataType,
+				dimensions: []int{T.length},
+			},
+		}
+	}
+
 	if arr, ok := (*currentScope).arrays[trimmed]; ok {
-		return arr
+		return ArrayExpression{
+			stringValue: expr,
+			dataType:    arr.dataType,
+		}
+	}
+	currentString := ""
+Loop:
+	for i := 0; i < len(expr); i++ {
+		switch expr[i] {
+		case '(':
+			break Loop
+		default:
+			currentString += string(expr[i])
+		}
+	}
+	if fn, ok := (*currentScope).functions[currentString]; ok {
+		if fn.returnsDerived {
+			return ArrayExpression{
+				stringValue: expr,
+				dataType:    fn.derivedReturnType,
+			}
+		}
 	}
 	panic(fmt.Sprintf("Line %d: invalid array expression", lineNum+1))
+}
+
+func parseMultiLineArrayExpression(lines []string, lineNum int, expectedType primitiveType, currentScope *Scope) ArrayExpression {
+	varsCopy := make(map[string]Variable) // used to later restore currentScope.vars to original
+	// so that when variable declarations are actually parsed they don't throw an already declared error
+	arraysCopy := make(map[string]Array)
+
+	for k, v := range (*currentScope).vars {
+		varsCopy[k] = v
+	}
+
+	for k, v := range (*currentScope).arrays {
+		arraysCopy[k] = v
+	}
+	bracketCount := 0
+	exprCount := 0
+	exprLine := -1
+	var expr string
+	for n := lineNum; n < len(lines); n++ {
+		line := lines[n]
+		for i := 0; i < len(line); i++ {
+			if line[i] == '{' {
+				bracketCount++
+			} else if line[i] == '}' {
+				bracketCount--
+			}
+		}
+		if bracketCount == 0 {
+			break
+		}
+		if bracketCount != 1 {
+			continue
+		}
+		if getItemType(lines[n], n, currentScope) == VariableDeclaration {
+			_ = parseVariableDeclaration(lines[n], n, currentScope)
+		} else if getItemType(lines[n], n, currentScope) == ArrDeclaration {
+			_ = parseArrayDeclaration(lines[n], n, currentScope)
+		}
+		if exprCount >= 1 {
+			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", n+1))
+		}
+		if isStatement(line) {
+			continue
+		}
+		expr = line
+		exprLine = n
+		exprCount++
+	}
+
+	if exprLine == -1 {
+		panic(fmt.Sprintf("Line %d: found no returned value if function", lineNum+1))
+	}
+
+	to_return := parseArrayExpression(expr, expectedType, exprLine, currentScope)
+	(*currentScope).vars = varsCopy
+	(*currentScope).arrays = arraysCopy
+
+	return to_return
+}
+
+func findExpectedType(lines []string, lineNum int) primitiveType {
+	// needs to loop backwards through lines to find function declartion with return type typeAnnotation
+	// doesn't really need error checking as function declaration will already have been parsed
+	for i := lineNum; i >= 0; i-- {
+		words := strings.Fields(lines[i])
+		if words[0] == "function" {
+			typeAnnotation := words[len(words)-3] // not = or {
+			expectedType := parseArrayType(typeAnnotation, i)
+			return expectedType.baseType
+		}
+	}
+	panic("in theory should never panic here lol")
 }

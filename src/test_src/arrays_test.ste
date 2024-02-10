@@ -2,7 +2,17 @@ function first(nums: int[5]) -> int = {
   nums[0]
 }
 
+function add_one(nums: int[5]) -> int[5] = {
+  let mut result: int[5] = nums
+  let mut i: int = 0
+  loop i < 5 {
+    println!(result[i])
+  }
+  result
+}
+
 function main() -> IO = {
   let mut test: int[5] = [1, 2, 3, 4, 5]
-  println!(first(test))
+  let added: int[5] = add_one(test)
+  println!(first(added))
 }
