@@ -172,6 +172,10 @@ func (A ArrayAssignment) transpile() string {
 	return transpiled
 }
 
+func (A ArrayExpression) transpile() string {
+	return A.stringValue
+}
+
 func (M Macro) transpile() string {
 	var transpiled string
 	switch M.T {

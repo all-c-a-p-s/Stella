@@ -12,7 +12,16 @@ func format(transpiled string, tabSize int) string {
 	var formatted string
 
 	for _, line := range lines {
-		for spaces := 0; spaces < bracketScoreAtEnd; spaces++ {
+
+		var indentScore int = bracketScoreAtEnd
+		if len(strings.Trim(line, " ")) == 0 {
+			formatted += "\n"
+			continue
+		} else if strings.Trim(line, " ")[0] == '}' {
+			// lines which close scopes should have 1 less scope score
+			indentScore -= 1
+		}
+		for spaces := 0; spaces < indentScore; spaces++ {
 			for k := 0; k < tabSize; k++ {
 				formatted += " "
 			}

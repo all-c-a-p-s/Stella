@@ -25,6 +25,7 @@ const (
 	LoopStatement
 	LoopBreakStatement
 	ReturnStatement
+	DerivedReturnStatement
 	ScopeClose
 	MacroItem
 	Empty
@@ -83,11 +84,13 @@ type SelectionStatement struct {
 }
 
 type Function struct {
-	identifier  string
-	parameters  []Variable
-	arrays      []Array
-	paramsOrder []parameterType
-	returnType  primitiveType
+	parameters        []Variable
+	arrays            []Array
+	paramsOrder       []parameterType
+	identifier        string
+	derivedReturnType ArrayType
+	returnType        primitiveType
+	returnsDerived    bool
 }
 
 type Expression struct {
@@ -511,9 +514,14 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 
 	varsCopy := make(map[string]Variable) // used to later restore currentScope.vars to original
 	// so that when variable declarations are actually parsed they don't throw an already declared error
+	arraysCopy := make(map[string]Array)
 
 	for k, v := range (*currentScope).vars {
 		varsCopy[k] = v
+	}
+
+	for k, v := range (*currentScope).arrays {
+		arraysCopy[k] = v
 	}
 
 	bracketCount := 0
@@ -537,6 +545,8 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 		}
 		if getItemType(lines[n], n, currentScope) == VariableDeclaration {
 			_ = parseVariableDeclaration(lines[n], n, currentScope)
+		} else if getItemType(lines[n], n, currentScope) == ArrDeclaration {
+			_ = parseArrayDeclaration(lines[n], n, currentScope)
 		}
 		if exprCount >= 1 {
 			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", n+1))
@@ -550,6 +560,7 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 	}
 	if exprLine == -1 {
 		(*currentScope).vars = varsCopy
+		(*currentScope).arrays = arraysCopy
 		return Expression{
 			items:    []string{},
 			dataType: IO,
@@ -557,6 +568,7 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 	}
 	to_return := parseExpression(expr, exprLine, currentScope)
 	(*currentScope).vars = varsCopy
+	(*currentScope).arrays = arraysCopy
 	return to_return
 }
 
@@ -616,6 +628,7 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []paramet
 	return variables, arrays, paramTypes
 }
 
+// let square(x: int) -> int = {x * x}
 func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	var allLines string
 	for _, l := range lines {
@@ -624,7 +637,6 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	line := lines[lineNum]
-	// var returnType primitiveType
 	words := strings.Fields(line)
 	if words[0] != "function" {
 		panic("parseFunction() somehow called without function keyword")
@@ -698,10 +710,25 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		panic(fmt.Sprintf("Line %d: expected return type annotation with '->'", lineNum+1))
 	}
 
-	returnType := readType(afterWords[1], lineNum)
-	if returnType == IO {
-		if identifier != "main" {
-			panic(fmt.Sprintf("Line %d: only the main() function can have return type IO", lineNum+1))
+	typeAnnotation := afterWords[1]
+	var returnsDerived bool
+	for i := 0; i < len(typeAnnotation); i++ {
+		if typeAnnotation[i] == '[' {
+			returnsDerived = true
+		}
+	}
+
+	var derivedReturnType ArrayType
+	var returnType primitiveType
+
+	if returnsDerived {
+		derivedReturnType = parseArrayType(typeAnnotation, lineNum)
+	} else {
+		returnType = readType(afterWords[1], lineNum)
+		if returnType == IO {
+			if identifier != "main" {
+				panic(fmt.Sprintf("Line %d: only the main() function can have return type IO", lineNum+1))
+			}
 		}
 	}
 
@@ -720,23 +747,45 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		panic(fmt.Sprintf("Line %d: found no returned expression from function", lineNum+1))
 	}
 
-	var expression Expression
-
-	if strings.Trim(lines[lineNum][exprStart:], " ")[0] != '{' { // single-line expression
-		expression = parseExpression(lines[lineNum][exprStart:], lineNum, currentScope)
+	if returnsDerived {
+		var arrExpression ArrayExpression
+		if strings.Trim(lines[lineNum][exprStart:], " ")[0] != '{' {
+			arrExpression = parseArrayExpression(lines[lineNum][exprStart:], derivedReturnType.baseType, lineNum, currentScope)
+		} else {
+			arrExpression = parseMultiLineArrayExpression(lines, lineNum, derivedReturnType.baseType, currentScope)
+		}
+		if arrExpression.dataType.baseType != derivedReturnType.baseType {
+			panic(fmt.Sprintf("Line %d: expected return base type %v but found %v", lineNum+1, derivedReturnType.baseType, arrExpression.dataType.baseType))
+		}
+		if len(arrExpression.dataType.dimensions) != len(derivedReturnType.dimensions) {
+			panic(fmt.Sprintf("Line %d: expected returned array with %d dimensions but found %d dimensions", lineNum+1, len(derivedReturnType.dimensions), len(arrExpression.dataType.dimensions)))
+		}
+		for i := 0; i < len(derivedReturnType.dimensions); i++ {
+			if derivedReturnType.dimensions[i] != arrExpression.dataType.dimensions[i] {
+				panic(fmt.Sprintf("Line %d: dimensions size of array returned from function does not match return type annotation", lineNum+1))
+			}
+		}
 	} else {
-		expression = parseMultiLineExpression(lines, lineNum, currentScope)
-	}
-	if expression.dataType != returnType {
-		panic(fmt.Sprintf("Line %d: expected return type %v but found return type %v", lineNum+1, returnType, expression.dataType))
+		// returns primitive type
+		var expression Expression
+		if strings.Trim(lines[lineNum][exprStart:], " ")[0] != '{' { // single-line expression
+			expression = parseExpression(lines[lineNum][exprStart:], lineNum, currentScope)
+		} else {
+			expression = parseMultiLineExpression(lines, lineNum, currentScope)
+		}
+		if expression.dataType != returnType {
+			panic(fmt.Sprintf("Line %d: expected return type %v but found return type %v", lineNum+1, returnType, expression.dataType))
+		}
 	}
 
 	f := Function{
-		parameters:  parameters,
-		arrays:      arrays,
-		paramsOrder: order,
-		returnType:  returnType,
-		identifier:  identifier,
+		parameters:        parameters,
+		arrays:            arrays,
+		paramsOrder:       order,
+		returnType:        returnType,
+		identifier:        identifier,
+		returnsDerived:    returnsDerived,
+		derivedReturnType: derivedReturnType,
 	}
 
 	(*currentScope).functions[f.identifier] = f
@@ -828,7 +877,8 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			parameterExpressions = append(parameterExpressions, expression)
 			variableCount++
 		} else {
-			arrayExpression := parseArrayExpression(parameterExprs[i], lineNum, currentScope)
+			expectedType := fn.arrays[arrayCount].dataType.baseType
+			arrayExpression := parseArrayExpression(parameterExprs[i], expectedType, lineNum, currentScope)
 			if arrayExpression.dataType.baseType == fn.arrays[arrayCount].dataType.baseType {
 				if len(arrayExpression.dataType.dimensions) != len(fn.arrays[arrayCount].dataType.dimensions) {
 					panic(fmt.Sprintf("Line %dL expression does not have same number of dimensions as array parameter", lineNum+1))
@@ -841,7 +891,11 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			} else {
 				panic(fmt.Sprintf("Line %d: expression does not have same base type as array parameter", lineNum+1))
 			}
-			arrays = append(arrays, arrayExpression)
+
+			arr := Array{
+				dataType: arrayExpression.dataType,
+			}
+			arrays = append(arrays, arr)
 			arrayCount++
 		}
 	}
@@ -1059,6 +1113,60 @@ func assignmentType(line string, lineNum int, currentScope *Scope) itemType {
 	panic(fmt.Sprintf("Line %d: assignment to variable %s not in scope", lineNum+1, words[0]))
 }
 
+func returnStatementType(line string, lineNum int, currentScope *Scope) itemType {
+	var currentString string
+	var stringCount int
+Loop:
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case '"':
+			if stringCount == 0 {
+				stringCount = 1
+			} else {
+				stringCount = 0
+			}
+		case '(':
+			break Loop
+		default:
+			if stringCount == 0 {
+				currentString += string(line[i])
+			}
+		}
+
+		if i == len(line)-1 {
+			currentString = ""
+		}
+	}
+
+	if len(currentString) != 0 {
+		if fn, ok := (*currentScope).functions[currentString]; ok {
+			if fn.returnsDerived {
+				return DerivedReturnStatement
+			}
+			return ReturnStatement
+		} else {
+			panic(fmt.Sprintf("Line %d: attempt to call function %s not in scope", lineNum+1, currentString))
+		}
+	}
+	if line[0] == '[' {
+		return DerivedReturnStatement
+	}
+
+	words := strings.Fields(line)
+
+	if len(words) == 0 {
+		panic("returnStatementType() called on blank line")
+	}
+
+	if _, ok := (*currentScope).vars[words[0]]; ok {
+		return ReturnStatement
+	} else if _, ok := (*currentScope).arrays[words[0]]; ok {
+		return DerivedReturnStatement
+	}
+	// first token not array literal -> must be some primitive literal
+	return ReturnStatement
+}
+
 func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 	words := strings.Fields(line)
 	if len(words) == 0 {
@@ -1095,7 +1203,7 @@ func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 			return ScopeClose
 		}
 		if !isStatement(line) {
-			return ReturnStatement
+			return returnStatementType(line, lineNum, currentScope)
 		}
 
 		for i := 0; i < len(line); i++ {
@@ -1266,6 +1374,17 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			}
 			expr := parseExpression(line, n, &newScope)
 			newScope.items = append(newScope.items, expr)
+
+		case DerivedReturnStatement:
+			if scopeType != FunctionScope {
+				panic(fmt.Sprintf("Line %d: Found return statement outside function scope", n+1))
+			}
+
+			// find expected type from function declaration above
+			expectedType := findExpectedType(lines, n)
+
+			arrExpr := parseArrayExpression(line, expectedType, lineNum, &newScope)
+			newScope.items = append(newScope.items, arrExpr)
 
 		case SelectionIf:
 
