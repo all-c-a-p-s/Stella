@@ -1,4 +1,0 @@
-function main() -> IO = {
-    let message: string = "Hello " + "from " + "Stella!"
-    println!(message)
-  }
