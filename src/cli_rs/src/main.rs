@@ -50,6 +50,7 @@ fn main() -> std::io::Result<()> {
 
     let execute_ok = match command_args.command.as_str() {
         "tp" => tp::tp(&command_args),
+        "new" => new::new(&command_args),
         _ => panic!("invalid command {}", command_args.command),
     };
 
