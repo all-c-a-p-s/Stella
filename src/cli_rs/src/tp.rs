@@ -2,18 +2,76 @@ use std::fs;
 use std::fs::File;
 use std::process::Command;
 
+use std::env;
 use std::io::Write;
 
 use crate::error_parser::parse_error;
 use crate::Args;
 
+const BACKSLASH_ASCII: char = 98u8 as char;
+//also string escape character lol
+
+pub fn get_diretory(path: &String) -> String {
+    let current_path = match env::current_dir() {
+        Ok(path) => path,
+        Err(_) => panic!("no directory found and failed to get working directory"),
+    };
+
+    if path.is_empty() {
+        panic!("path {} has no filename", &path)
+    }
+
+    let mut directory_end: usize = path.len() - 1;
+
+    for c in path.chars().rev() {
+        match c {
+            '/' | BACKSLASH_ASCII => break,
+            _ => directory_end -= 1,
+        };
+    }
+
+    if directory_end != 0 {
+        return path[..directory_end].to_string();
+    }
+
+    format!("{}", current_path.display())
+}
+
 pub fn transpile(args: &Args) -> Result<String, String> {
     if args.command != "tp" {
         panic!("invalid command")
     }
+
+    //TODO: write path to a .txt file
+    //read file in main.go
+    //then delete file again
+
+    let current_directory: String = match env::current_dir() {
+        Ok(path) => format!("{}", path.display()),
+        Err(_) => panic!("failed to get current working directory"),
+    };
+
+    let compiler_directory = String::from("C:/Users/vajol/Documents/goProjects/Stella/src/cli");
+    let ok = env::set_current_dir(&compiler_directory);
+    if ok.is_err() {
+        panic!("error entering directory {}", &compiler_directory)
+    }
+
+    let metadata = current_directory.clone() + "/" + args.path.as_str();
+
+    match write_transpiled(metadata, String::from("metadata.txt")) {
+        Ok(file) => file,
+        Err(_) => panic!("error creating file metadata.txt"),
+    };
+
+    let ok = env::set_current_dir(&compiler_directory);
+    if ok.is_err() {
+        panic!("error entering directory {}", &compiler_directory)
+    }
+
     let output = if cfg!(target_os = "windows") {
-        Command::new("../cli/cli.exe")
-            .args([&args.path])
+        Command::new("cmd")
+            .args(["/C", "go run ."])
             .output()
             .expect("failed to execute process")
     } else {
@@ -29,9 +87,16 @@ pub fn transpile(args: &Args) -> Result<String, String> {
         if output.stderr.is_empty() {
             panic!("both output.stdout and output.stderr empty")
         }
+        println!("{}", String::from_utf8(output.stderr.clone()).unwrap());
         let msg: String = String::from_utf8(output.stderr).expect("failed to get error message");
         return Err(msg);
     }
+
+    let ok = env::set_current_dir(&current_directory);
+    if ok.is_err() {
+        panic!("error entering directory {}", &current_directory)
+    }
+
     Ok(String::from_utf8(output.stdout).expect("output not valid UTF-8 string"))
 }
 
