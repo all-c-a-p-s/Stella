@@ -5,8 +5,10 @@ use std::path::Path;
 
 use crate::Args;
 
-pub fn create_new(p: &str) -> Result<(), String> {
-    let path = Path::new(p);
+pub fn create_module(module_name: &str) -> Result<(), String> {
+    //create parent directory with same name as path argument in command
+    //then create subdirectories src and tp
+    let path = Path::new(module_name);
     if path.is_dir() {
         return Err(String::from("already exists"));
     }
@@ -16,41 +18,77 @@ pub fn create_new(p: &str) -> Result<(), String> {
     }
 }
 
-pub fn create_files(path: &str) -> std::io::Result<()> {
+pub fn create_directory(dir_name: &str) -> std::io::Result<()> {
+    let path = Path::new(dir_name);
+    if path.is_dir() {
+        panic!("src directory already exists");
+    }
+    match fs::create_dir(path) {
+        Ok(file) => Ok(file),
+        Err(error) => panic!("error creating directory {}", error),
+    }
+}
+
+pub fn create_file(filename: &str) -> std::io::Result<()> {
+    let already_exists = File::open(filename);
+    if already_exists.is_ok() {
+        //file already exists -> delete it and rewrite
+        let delete = fs::remove_file(filename);
+        match delete {
+            Ok(()) => (),
+            Err(_) => panic!(
+                "failed to delete file {} before creating new file",
+                &filename
+            ),
+        }
+    }
+
+    match File::create(filename) {
+        Ok(file) => file,
+        Err(error) => panic!("failed to create file: {}", error),
+    };
+
+    Ok(())
+}
+
+pub fn create_subdirectories(module_name: &str) -> std::io::Result<()> {
+    let ok = env::set_current_dir(module_name);
+    if ok.is_err() {
+        panic!("error entering directory {}", &module_name)
+    }
+    create_directory("src")?;
+    create_directory("tp")?;
+
+    create_stella_files("src")?;
+
+    let ok = env::set_current_dir("./..");
+    if ok.is_err() {
+        panic!("error exiting src directory")
+    }
+    create_go_files("tp")?;
+
+    Ok(())
+}
+
+pub fn create_stella_files(path: &str) -> std::io::Result<()> {
     let ok = env::set_current_dir(path);
     if ok.is_err() {
         panic!("error entering directory {}", &path)
     }
 
-    let already_exists = File::open("main.ste");
-    if already_exists.is_ok() {
-        //file already exists -> delete it and rewrite
-        let delete = fs::remove_file("main.ste");
-        match delete {
-            Ok(()) => (),
-            Err(_) => panic!("failed to delete file main.ste before creating new file"),
-        }
+    create_file("main.ste")?;
+    create_file("stella.toml")?;
+    Ok(())
+}
+
+pub fn create_go_files(path: &str) -> std::io::Result<()> {
+    let ok = env::set_current_dir(path);
+    if ok.is_err() {
+        panic!("error entering directory {}", &path)
     }
 
-    match File::create("main.ste") {
-        Ok(file) => file,
-        Err(error) => panic!("failed to create file: {}", error),
-    };
-
-    let already_exists = File::open("stella.toml");
-    if already_exists.is_ok() {
-        //file already exists -> delete it and rewrite
-        let delete = fs::remove_file("stella.toml");
-        match delete {
-            Ok(()) => (),
-            Err(_) => panic!("failed to delete file stella.toml before creating new file"),
-        }
-    }
-
-    match File::create("stella.toml") {
-        Ok(file) => file,
-        Err(error) => panic!("failed to create file: {}", error),
-    };
+    create_file("main.go")?;
+    create_file("go.mod")?;
     Ok(())
 }
 
@@ -61,11 +99,13 @@ pub fn new(args: &Args) -> std::io::Result<()> {
     if args.target.is_some() {
         panic!("new command used with target argument")
     }
-    match create_new(args.path.as_str()) {
+    match create_module(args.path.as_str()) {
         Ok(dir) => dir,
         Err(_) => panic!("error creating directory"),
     };
 
-    create_files(args.path.as_str())?;
+    create_subdirectories(args.path.as_str())?;
+    //this cd's into module, creates subdirectories and files
+
     Ok(())
 }
