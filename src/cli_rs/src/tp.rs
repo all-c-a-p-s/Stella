@@ -71,7 +71,7 @@ pub fn transpile(args: &Args) -> Result<String, String> {
 
     let output = if cfg!(target_os = "windows") {
         Command::new("cmd")
-            .args(["/C", "go run ."])
+            .args(["/C", "cli.exe"])
             .output()
             .expect("failed to execute process")
     } else {
