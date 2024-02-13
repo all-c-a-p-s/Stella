@@ -59,7 +59,7 @@ pub fn transpile(args: &Args) -> Result<String, String> {
 
     let metadata = current_directory.clone() + "/" + args.path.as_str();
 
-    match write_transpiled(metadata, String::from("metadata.txt")) {
+    match write_text(metadata, String::from("metadata.txt")) {
         Ok(file) => file,
         Err(_) => panic!("error creating file metadata.txt"),
     };
@@ -100,7 +100,7 @@ pub fn transpile(args: &Args) -> Result<String, String> {
     Ok(String::from_utf8(output.stdout).expect("output not valid UTF-8 string"))
 }
 
-pub fn write_transpiled(tpd: String, target: String) -> std::io::Result<()> {
+pub fn write_text(tpd: String, target: String) -> std::io::Result<()> {
     let already_exists = File::open(&target);
     if already_exists.is_ok() {
         //file already exists -> delete it and rewrite
@@ -135,7 +135,7 @@ pub fn tp(args: &Args) -> std::io::Result<()> {
         Err(msg) => panic!("Transpiler Error: {:?}", parse_error(msg)),
     };
 
-    write_transpiled(transpiled, target.to_owned())?;
+    write_text(transpiled, target.to_owned())?;
 
     println!("Transpiled to path {}", target);
 

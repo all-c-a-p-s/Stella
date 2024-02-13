@@ -2,4 +2,4 @@
 
 Syntax highlighting for the programming language [Stella](https://github.com/all-c-a-p-s/Stella/):
 
-![demo](demo_code.PNG)
+![demo](../demo_code.PNG)

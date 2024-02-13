@@ -3,7 +3,12 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 
+use crate::tp;
 use crate::Args;
+
+pub fn write_gomod(module_name: &str) -> String {
+    String::from("module ") + module_name + "\n" + "\n" + "go 1.21.1"
+}
 
 pub fn create_module(module_name: &str) -> Result<(), String> {
     //create parent directory with same name as path argument in command
@@ -65,7 +70,7 @@ pub fn create_subdirectories(module_name: &str) -> std::io::Result<()> {
     if ok.is_err() {
         panic!("error exiting src directory")
     }
-    create_go_files("tp")?;
+    create_go_files("tp", module_name)?;
 
     Ok(())
 }
@@ -81,14 +86,15 @@ pub fn create_stella_files(path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn create_go_files(path: &str) -> std::io::Result<()> {
+pub fn create_go_files(path: &str, module_name: &str) -> std::io::Result<()> {
     let ok = env::set_current_dir(path);
     if ok.is_err() {
         panic!("error entering directory {}", &path)
     }
 
     create_file("main.go")?;
-    create_file("go.mod")?;
+    let gomod = write_gomod(module_name);
+    tp::write_text(gomod, String::from("go.mod"))?;
     Ok(())
 }
 
@@ -105,6 +111,7 @@ pub fn new(args: &Args) -> std::io::Result<()> {
     };
 
     create_subdirectories(args.path.as_str())?;
+    println!("successfully created module {}", args.path.as_str());
     //this cd's into module, creates subdirectories and files
 
     Ok(())

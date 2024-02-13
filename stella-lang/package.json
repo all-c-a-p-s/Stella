@@ -4,7 +4,7 @@
   "displayName": "Stella Lang",
   "description": "Syntax highlighting for the Stella programming language",
   "icon": "logo.png",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "repository": {
     "type": "git",
     "url": "https://github.com/all-c-a-p-s/Stella"
