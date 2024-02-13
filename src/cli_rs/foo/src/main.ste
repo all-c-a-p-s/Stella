@@ -1,0 +1,4 @@
+function main() -> IO = {
+  let nums: int[5] = [1, 2, 3, 4, 5]
+  println!(nums[4])
+}

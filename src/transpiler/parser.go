@@ -1327,6 +1327,9 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		case ArrDeclaration:
 			declaration := parseArrayDeclaration(line, n, &newScope)
 			newScope.items = append(newScope.items, declaration)
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global arrays are not allowed in Stella", n))
+			}
 
 		case FunctionDeclaration:
 			subScope := Scope{}
@@ -1367,6 +1370,9 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		case ArrAssignment:
 			assignment := parseArrayAssignment(lines[n], n, &newScope)
 			newScope.items = append(newScope.items, assignment)
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global arrays are not allowed in Stella", n))
+			}
 
 		case ReturnStatement:
 			if scopeType != FunctionScope {
@@ -1387,6 +1393,10 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			newScope.items = append(newScope.items, arrExpr)
 
 		case SelectionIf:
+
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global if statements are not allowed in Stella as they will never execute", n))
+			}
 
 			subScope := Scope{}
 
@@ -1415,6 +1425,10 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			n = ended - 1
 
 		case SelectionElse, SelectionElseIf:
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global if statements are not allowed in Stella as they will never execute", n))
+			}
+
 			if len(newScope.items) == 0 {
 				panic(fmt.Sprintf("Line %d: else/else if statements must be preceded by other selection statements", n+1))
 			}
@@ -1468,6 +1482,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			n = ended - 1
 
 		case LoopStatement:
+
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global loops not allowed in Stella as they will never execute", n))
+			}
+
 			subScope := Scope{}
 
 			// copy manually as maps are reference types
@@ -1517,6 +1536,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			}
 
 		case MacroItem:
+
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global macros are not allowed in Stella as they will never execute", n))
+			}
+
 			macro := parseMacro(lines[n], lineNum, &newScope)
 			if newScope.scopeType == Global {
 				panic(fmt.Sprintf("Line %d: found unexpected macro in global scope", n+1))

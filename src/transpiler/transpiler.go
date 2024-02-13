@@ -1,6 +1,9 @@
 package transpiler
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 //line which is just "}"
 type ScopeCloser struct {
@@ -173,6 +176,14 @@ func (A ArrayAssignment) transpile() string {
 }
 
 func (A ArrayExpression) transpile() string {
+	if strings.Trim(A.stringValue, " ")[0] == '[' {
+		// fine as there are no operators that work on arrays
+
+		s := Scope{}
+		literal := parseArrayValue(A.stringValue, A.dataType.baseType, &s, 0)
+		//^ should be impossible for line above to panic 🙏
+		return literal.transpile()
+	}
 	return A.stringValue
 }
 
