@@ -42,10 +42,6 @@ pub fn transpile(args: &Args) -> Result<String, String> {
         panic!("invalid command")
     }
 
-    //TODO: write path to a .txt file
-    //read file in main.go
-    //then delete file again
-
     let current_directory: String = match env::current_dir() {
         Ok(path) => format!("{}", path.display()),
         Err(_) => panic!("failed to get current working directory"),
@@ -87,7 +83,6 @@ pub fn transpile(args: &Args) -> Result<String, String> {
         if output.stderr.is_empty() {
             panic!("both output.stdout and output.stderr empty")
         }
-        println!("{}", String::from_utf8(output.stderr.clone()).unwrap());
         let msg: String = String::from_utf8(output.stderr).expect("failed to get error message");
         return Err(msg);
     }

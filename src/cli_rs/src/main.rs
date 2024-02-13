@@ -1,7 +1,9 @@
 use std::env;
 
+pub mod build;
 pub mod error_parser;
 pub mod new;
+pub mod run;
 pub mod tp;
 
 #[derive(Debug)]
@@ -51,6 +53,8 @@ fn main() -> std::io::Result<()> {
     let execute_ok = match command_args.command.as_str() {
         "tp" => tp::tp(&command_args),
         "new" => new::new(&command_args),
+        "build" => build::build(&command_args),
+        "run" => run::run(&command_args),
         _ => panic!("invalid command {}", command_args.command),
     };
 
