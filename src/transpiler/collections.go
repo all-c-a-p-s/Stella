@@ -58,6 +58,7 @@ type ArrayExpression struct {
 }
 
 func squareBracketEnd(s string, start, lineNum int) int {
+	// find index in line or square bracket close
 	var bracketCount int
 	for i := start; i < len(s); i++ {
 		switch s[i] {
@@ -96,6 +97,7 @@ func parseArrayType(typeWord string, lineNum int) ArrayType {
 	dims := typeWord[squareBracketIndex:]
 	bracketCount := 0
 
+	// check for valid dimensions declaration
 	var dimensions []int
 
 	var currentNumStr string
@@ -137,6 +139,7 @@ func parseArrayType(typeWord string, lineNum int) ArrayType {
 }
 
 func parseBaseArray(arrayValue string, expectedType primitiveType, currentScope *Scope, lineNum int) BaseArray {
+	// parses base array where the data type of the elements is a primitive type
 	if len(arrayValue) < 2 {
 		panic(fmt.Sprintf("line %d: length of array value cannot be less than two", lineNum+1))
 	}
@@ -154,9 +157,22 @@ func parseBaseArray(arrayValue string, expectedType primitiveType, currentScope 
 	var currentElement string
 	var elements []Expression
 
-	// TODO: fix string literals
+	var stringLiteralCount int
 
 	for i := 1; i < len(arrayValue); i++ {
+		if arrayValue[i] == '"' {
+			if stringLiteralCount == 1 {
+				stringLiteralCount = 0
+			} else {
+				stringLiteralCount = 1
+			}
+		}
+
+		if stringLiteralCount != 0 {
+			// inside string literal
+			currentElement += string(arrayValue[i])
+			continue
+		}
 		switch arrayValue[i] {
 		case ',':
 			expr := parseExpression(currentElement, lineNum, currentScope)
@@ -186,6 +202,7 @@ func parseBaseArray(arrayValue string, expectedType primitiveType, currentScope 
 }
 
 func parseArrayValue[T primitiveType](arrayValue string, expectedType primitiveType, currentScope *Scope, lineNum int) ArrayValue[T] {
+	// parses value of either base or multi-dimensional array
 	if len(arrayValue) < 2 {
 		panic(fmt.Sprintf("line %d: length of array value cannot be less than two", lineNum+1))
 	}
@@ -226,6 +243,7 @@ func parseArrayValue[T primitiveType](arrayValue string, expectedType primitiveT
 		elements = base.values
 		L = len(elements)
 	} else {
+		// multi-dimensional array
 		for i := 0; i < len(arrayValue); i++ {
 			switch arrayValue[i] {
 			case '[':
@@ -242,6 +260,7 @@ func parseArrayValue[T primitiveType](arrayValue string, expectedType primitiveT
 					subArrayValue = arrayValue[i : end+1]
 				}
 				child := parseArrayValue[T](subArrayValue, expectedType, currentScope, lineNum)
+				// recusrive call on elements of current array
 				children = append(children, &child)
 			}
 		}
@@ -261,6 +280,7 @@ func parseArrayDeclaration(line string, lineNum int, currentScope *Scope) ArrayD
 
 	var mut bool
 
+	// check pattens declaration can match:
 	words := strings.Fields(line)
 	if len(words) == 0 {
 		panic("parseArrayDeclaration() called on empty line")
@@ -332,7 +352,6 @@ func parseArrayDeclaration(line string, lineNum int, currentScope *Scope) ArrayD
 	}
 }
 
-// TODO: check that this iz zero-indexed
 func parseArrayIndexing(indexing string, lineNum int, currentScope *Scope) ArrayIndexing {
 	trimmed := strings.Trim(indexing, " ")
 	if len(strings.Fields(trimmed)) > 1 {
@@ -400,8 +419,8 @@ Loop:
 	}
 
 	num, err := strconv.Atoi(dimensions[0].transpile())
-	if err != nil { // it is just a number, so we can check whether it is inside array bounds
-		if num > arr.dataType.dimensions[0] {
+	if err != nil { // integer literal -> we can check whether it is inside array bounds
+		if num > arr.dataType.dimensions[0]-1 { // zero-indexed
 			panic(fmt.Sprintf("Line %d: attempt to index element %d but array has size %d", lineNum+1, num, arr.dataType.dimensions[0]))
 		}
 	}
@@ -419,6 +438,7 @@ func parseArrayAssignment(line string, lineNum int, currentScope *Scope) ArrayAs
 		panic(fmt.Sprintf("Line %d: invalid assignment", lineNum+1))
 	}
 
+	// patterns array assignment can match:
 	arr, ok := (currentScope).arrays[words[0]]
 
 	if !ok {
@@ -470,6 +490,7 @@ func parseArrayAssignment(line string, lineNum int, currentScope *Scope) ArrayAs
 }
 
 func parseArrayIndexAssignment(line string, lineNum int, currentScope *Scope) ArrayIndexAssignment {
+	// parse assignment to index of array
 	words := strings.Fields(line)
 
 	var identifier string
@@ -514,7 +535,7 @@ Loop:
 	expr := line[exprStart:]
 	rightSide := parseExpression(expr, lineNum, currentScope)
 	if rightSide.dataType != leftSideType {
-		// should panic in parsing anyway, but maybe I'll change that later and forget
+		// should panic in parsing anyway, but maybe I'll change something later and forget
 		panic(fmt.Sprintf("Line %d: data type of right hand side of expression does not match data type of left hand side", lineNum+1))
 	}
 
@@ -525,9 +546,11 @@ Loop:
 }
 
 func parseArrayExpression(expr string, expectedType primitiveType, lineNum int, currentScope *Scope) ArrayExpression {
+	// parses any array expression
 	trimmed := strings.Trim(expr, " ")
 
 	if trimmed[0] == '[' {
+		// array literals
 		T := parseBaseArray(expr, expectedType, currentScope, lineNum)
 		return ArrayExpression{
 			stringValue: expr,
@@ -555,6 +578,7 @@ Loop:
 		}
 	}
 	if fn, ok := (*currentScope).functions[currentString]; ok {
+		// functions returning derived type
 		if fn.returnsDerived {
 			return ArrayExpression{
 				stringValue: expr,
@@ -566,6 +590,7 @@ Loop:
 }
 
 func parseMultiLineArrayExpression(lines []string, lineNum int, expectedType primitiveType, currentScope *Scope) ArrayExpression {
+	// parses blocks evaluating to array expression
 	varsCopy := make(map[string]Variable) // used to later restore currentScope.vars to original
 	// so that when variable declarations are actually parsed they don't throw an already declared error
 	arraysCopy := make(map[string]Array)
@@ -577,10 +602,14 @@ func parseMultiLineArrayExpression(lines []string, lineNum int, expectedType pri
 	for k, v := range (*currentScope).arrays {
 		arraysCopy[k] = v
 	}
+	// copy as reference types
+
 	bracketCount := 0
 	exprCount := 0
 	exprLine := -1
+
 	var expr string
+
 	for n := lineNum; n < len(lines); n++ {
 		line := lines[n]
 		for i := 0; i < len(line); i++ {

@@ -19,7 +19,7 @@ const (
 	Bool
 	Byte
 	String
-	IO // used as function return type
+	IO // used as function return type for main()
 )
 
 const (
@@ -123,10 +123,12 @@ func nextTerm(expression []string, index int, lineNum int) []string { // helper 
 	}
 	bracketCount := 0
 	if expression[index+1] != "(" {
+		// brackets open a new term of more than one token
 		if _, ok := unaryOperators()[expression[index+1]]; ok {
 			return nextTerm(expression, index+1, lineNum)
 		}
 		return []string{expression[index+1]}
+		// next token after bracket
 	}
 	for i := index + 1; i < len(expression); i++ {
 		switch expression[i] {
@@ -145,7 +147,7 @@ func nextTerm(expression []string, index int, lineNum int) []string { // helper 
 	panic(fmt.Sprintf("Line %d: brackets opened in expression but never closed", lineNum+1))
 }
 
-func previousTerm(expression []string, index int, lineNum int) []string {
+func previousTerm(expression []string, index int, lineNum int) []string { // similar helper function
 	if index == 0 {
 		panic("previousTerm() was called with no previous term somehow")
 	}
@@ -168,7 +170,7 @@ func previousTerm(expression []string, index int, lineNum int) []string {
 }
 
 func nextOperator(expression []string, index int) (int, error) {
-	// returns index of next operator
+	// returns index of next operator or error if there is none
 	bracketCount := 0
 	for i := index + 1; i < len(expression); i++ {
 		switch expression[i] {
@@ -191,7 +193,9 @@ func nextOperator(expression []string, index int) (int, error) {
 
 func expressionType(expression []string, lineNum int, currentScope *Scope) primitiveType {
 	// NOTE: does not currently support collections
+	// collections have a separate function
 	// also does not support multi-line expressions
+	// which have another separate function
 
 	if len(expression) == 0 {
 		panic(fmt.Sprintf("Line %d: Expression is empty", lineNum+1))
@@ -273,6 +277,8 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 	typesFound := make(map[primitiveType]struct{}) // Hashset of all types found in expression
 	previousOperatorIndex := -1                    // index in expression slice where last term ended.
 	// initialise as -1 for first function call
+
+	// match input types of all operators, terms:
 	for {
 		operatorIndex, err := nextOperator(expr, previousOperatorIndex)
 		if err != nil { // no next operator in expression
@@ -332,7 +338,7 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 				}
 				typesFound[nextType] = struct{}{}
 			}
-		case "*", "/": // TODO: make + also work for strings
+		case "*", "/":
 			previous := previousTerm(expr, operatorIndex, lineNum)
 			next := nextTerm(expr, operatorIndex, lineNum)
 			previousType := expressionType(previous, lineNum, currentScope)
@@ -404,6 +410,7 @@ func checkIntVal(value string, lineNum int) { // checks to see if int value cont
 }
 
 func checkFloatVal(value string, lineNum int) {
+	// check valid float literal
 	switch value[0] {
 	case '0':
 		if !(value[1] == '.') {
@@ -428,12 +435,14 @@ func checkFloatVal(value string, lineNum int) {
 }
 
 func checkBoolVal(value string, lineNum int) {
+	// valid bool literal
 	if !(value == "true" || value == "false") {
 		panic(fmt.Sprintf("Line %d: value '%s' cannot be used as a boolean value", lineNum+1, value))
 	}
 }
 
 func checkByteVal(value string, lineNum int) {
+	// valid byte literal
 	if len(value) != 3 {
 		panic(fmt.Sprintf("Line %d: single quotes are should be used to enclose single ASCII character, but here there is more than one character inside the quotes", lineNum+1))
 	}
@@ -444,6 +453,7 @@ func checkByteVal(value string, lineNum int) {
 }
 
 func checkStringVal(value string, lineNum int) {
+	// valid string literal
 	if !(value[0] == '"' && value[len(value)-1] == '"') {
 		panic(fmt.Sprintf("Line %d: '%s' cannot be used as string value", lineNum+1, value))
 	}

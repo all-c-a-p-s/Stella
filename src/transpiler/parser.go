@@ -334,6 +334,7 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 
 	var previous, next string
 
+	// check that sequence/types of tokens is valid
 	for i, token := range parsed {
 		if i == 0 {
 			previous = ""
@@ -350,25 +351,31 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 		_, binaryOperator := binaryOperators()[token]
 		_, unaryOperator := unaryOperators()[token]
 		if token == "(" || token == ")" || token == "{" || token == "}" {
+			// brackets don't matter as we only need to check the typeo of token that follows
 			continue
 		}
 
 		if binaryOperator && token != "-" {
+			// - id exception as it is both binary and unary operator
 			checkBinaryOperator(token, previous, next, lineNum, currentScope)
 		}
 		if unaryOperator {
 			if token == "-" {
 				_, prevBinary := binaryOperators()[previous]
 				if i == 0 || prevBinary {
+					// used as unary operator
 					checkUnaryOperator(token, previous, next, lineNum, currentScope)
 				} else {
+					// binary operator
 					checkBinaryOperator(token, previous, next, lineNum, currentScope)
 				}
 			} else {
+				// ! unary operator
 				checkUnaryOperator(token, previous, next, lineNum, currentScope)
 			}
 		}
 		if !unaryOperator && !binaryOperator {
+			// not operator -> must be value
 			checkValue(token, previous, next, lineNum, currentScope)
 		}
 	}
@@ -407,6 +414,7 @@ func checkValue(value, previous, next string, lineNum int, currentScope *Scope) 
 	_, unaryPrevious := unaryOperators()[previous]
 
 	if !binaryPrevious && !unaryPrevious {
+		// can only be bracket or nothing (expression start)
 		switch previous {
 		case "(", "{", "":
 		default:
@@ -418,6 +426,7 @@ func checkValue(value, previous, next string, lineNum int, currentScope *Scope) 
 	_, unaryNext := unaryOperators()[next]
 
 	if !binaryNext && !unaryNext {
+		// can only be bracket or nothing (expression end)
 		switch next {
 		case ")", "}", "":
 		default:
@@ -470,7 +479,6 @@ func checkBrackets(bracket, previous, next string, lineNum int) {
 		}
 	default:
 		panic("checkBrackets() function somehow called without a bracket lmao")
-
 	}
 }
 
@@ -483,6 +491,7 @@ func isStatement(line string) bool {
 	}
 	switch words[0] {
 	case "if", "loop", "let", "}":
+		// } is scope closer which counts as a statement
 		return true
 	}
 	assignment := false
@@ -525,10 +534,14 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 		arraysCopy[k] = v
 	}
 
+	// manual copy as maps are reference types
+
 	bracketCount := 0
 	exprCount := 0
 	exprLine := -1
+
 	var expr string
+
 	for n := lineNum; n < len(lines); n++ {
 		line := lines[n]
 		for i := 0; i < len(line); i++ {
@@ -542,6 +555,7 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 			break
 		}
 		if bracketCount != 1 {
+			// ignore lines which are not in main scope
 			continue
 		}
 		if getItemType(lines[n], n, currentScope) == VariableDeclaration {
@@ -575,6 +589,7 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 	to_return := parseExpression(expr, exprLine, currentScope)
 	(*currentScope).vars = varsCopy
 	(*currentScope).arrays = arraysCopy
+	// return maps to original
 	return to_return
 }
 
@@ -606,6 +621,8 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []paramet
 			}
 		}
 
+		// arrays and variable parameters put in seperate slices
+		// with a separate slice dictating the order
 		if isArr {
 			arrT := parseArrayType(words[1], lineNum)
 			newArr := Array{
@@ -634,13 +651,16 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []paramet
 	return variables, arrays, paramTypes
 }
 
-// let square(x: int) -> int = {x * x}
+//	function square(x: int) -> int = {
+//	  x * x
+//	}
 func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	var allLines string
 	for _, l := range lines {
 		allLines += l
 		allLines += "\n"
 	}
+	// all lines in function scope
 
 	line := lines[lineNum]
 	words := strings.Fields(line)
@@ -659,6 +679,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	identifier := parseIdentifier(string(id)+":", lineNum)
+	// colon added so it doesn't throw an expected type annotation error
 
 	if _, v := (*currentScope).vars[identifier]; v {
 		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
@@ -689,6 +710,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 			break
 		}
 	}
+	// get list of parameters
 
 	if identEnd == len(line) {
 		panic(fmt.Sprintf("Line %d: expected return type annotation after function identifier", lineNum+1))
@@ -708,8 +730,9 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	afterIdent := line[identEnd+1:]
 	afterWords := strings.Fields(afterIdent)
 
+	// go through patterns the function can match:
 	if len(afterWords) < 4 {
-		panic(fmt.Sprintf("Line %d: Expected return type annotation '->', type, equals sign '=' and '{' after function indentifier", lineNum+1))
+		panic(fmt.Sprintf("Line %d: expected return type annotation '->', type, equals sign '=' and '{' after function indentifier", lineNum+1))
 	}
 
 	if afterWords[0] != "->" {
@@ -718,6 +741,10 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 
 	typeAnnotation := afterWords[1]
 	var returnsDerived bool
+	// separate struct fields for derived return type and primitive return type
+	// one will get value assigned and other will take default value
+	// returnsDerived struct field dictated which is used
+
 	for i := 0; i < len(typeAnnotation); i++ {
 		if typeAnnotation[i] == '[' {
 			returnsDerived = true
@@ -758,6 +785,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	if returnsDerived {
+		// parse multi-line array expression and check match to return type
 		var arrExpression ArrayExpression
 		if strings.Trim(lines[lineNum][exprStart:], " ")[0] != '{' {
 			arrExpression = parseArrayExpression(lines[lineNum][exprStart:], derivedReturnType.baseType, lineNum, currentScope)
@@ -869,6 +897,8 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 		}
 	}
 
+	// get parameter list
+
 	if len(parameterExprs) != len(fn.paramsOrder) {
 		panic(fmt.Sprintf("Line %d: function %s takes %d arguments but %d were given", lineNum+1, fn.identifier, len(fn.parameters), len(parameterExprs)))
 	}
@@ -879,7 +909,10 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 	var variableCount, arrayCount int
 
 	for i := 0; i < len(fn.paramsOrder); i++ {
+		// check that order and types of parameters matches expected order of
+		// derived/primitive-typed parameters
 		if fn.paramsOrder[i] == VariableParameter {
+			// match variable parameter type
 			expression := parseExpression(parameterExprs[i], lineNum, currentScope)
 			if expression.dataType != fn.parameters[variableCount].dataType {
 				panic(fmt.Sprintf("Line %d: cannot use expression of type %v as argument of type %v", lineNum+1, expression.dataType.String(), fn.parameters[i].dataType.String()))
@@ -887,6 +920,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			parameterExpressions = append(parameterExpressions, expression)
 			variableCount++
 		} else {
+			// match derived parameter type
 			expectedType := fn.arrays[arrayCount].dataType.baseType
 			arrayExpression := parseArrayExpression(parameterExprs[i], expectedType, lineNum, currentScope)
 			if arrayExpression.dataType.baseType == fn.arrays[arrayCount].dataType.baseType {
@@ -919,6 +953,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 }
 
 func parseIfStatement(lineNum int, lines []string, currentScope *Scope) IfStatement {
+	// parses a whole sequence of if-else if-else
 	first := parseSelection(lineNum, lines, currentScope)
 
 	statements := []SelectionStatement{first}
@@ -948,6 +983,8 @@ func parseIfStatement(lineNum int, lines []string, currentScope *Scope) IfStatem
 }
 
 func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionStatement {
+	// parses individual selection statement
+	// i.e. if, else if, or else
 	line := lines[lineNum]
 	words := strings.Fields(line)
 	var T selectionType
@@ -974,6 +1011,7 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionS
 		panic(fmt.Sprintf("Line %d: if statement with no condition", lineNum+1))
 	}
 
+	// check for valid boolean expression
 	exprStart := 0
 	var currentWord string
 
@@ -1028,12 +1066,15 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionS
 }
 
 func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignment {
+	// parses assignment to variables only
 	line := lines[lineNum]
 	words := strings.Fields(line)
 
 	if len(words) < 3 {
 		panic(fmt.Sprintf("Line %d: invalid assignment", lineNum+1))
 	}
+
+	// check that variable is in scope and that expression mathces correct type:
 
 	v, ok := (currentScope).vars[words[0]]
 	if !ok {
@@ -1075,6 +1116,7 @@ func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignmen
 }
 
 func getScopeType(lines []string, lineNum int) ScopeType {
+	// returns reason for opening scope
 	line := lines[lineNum]
 	words := strings.Fields(line)
 	switch words[0] {
@@ -1082,12 +1124,15 @@ func getScopeType(lines []string, lineNum int) ScopeType {
 		return FunctionScope
 	case "if", "else":
 		return SelectionScope
+	case "loop":
+		return LoopScope
 	default:
 		panic(fmt.Sprintf("Line %d: invalid opening of scope", lineNum+1))
 	}
 }
 
 func declarationType(line string, lineNum int) itemType {
+	// identify whether variable or array was declared
 	words := strings.Fields(line)
 	identifierIndex := 1
 	if len(words) == 1 {
@@ -1108,6 +1153,7 @@ func declarationType(line string, lineNum int) itemType {
 }
 
 func assignmentType(line string, lineNum int, currentScope *Scope) itemType {
+	// identify whether variable, array or array index was assigned to
 	words := strings.Fields(line)
 	if len(words) == 0 {
 		panic("assignmentType() called on empty line %d")
@@ -1134,6 +1180,7 @@ func assignmentType(line string, lineNum int, currentScope *Scope) itemType {
 }
 
 func returnStatementType(line string, lineNum int, currentScope *Scope) itemType {
+	// identify whether a line is a primitive or derived-type return statement
 	var currentString string
 	var stringCount int
 Loop:
@@ -1158,8 +1205,11 @@ Loop:
 		}
 	}
 
+	// check if return statement contains function call
+
 	if len(currentString) != 0 {
 		if fn, ok := (*currentScope).functions[currentString]; ok {
+			// match to return type of called function
 			if fn.returnsDerived {
 				return DerivedReturnStatement
 			}
@@ -1183,11 +1233,13 @@ Loop:
 	} else if _, ok := (*currentScope).arrays[words[0]]; ok {
 		return DerivedReturnStatement
 	}
-	// first token not array literal -> must be some primitive literal
+	// first token not array literal or identifier -> must be some primitive literal
 	return ReturnStatement
 }
 
 func getItemType(line string, lineNum int, currentScope *Scope) itemType {
+	// gets type of line which so that the parseScope() carry out
+	// according parsing
 	words := strings.Fields(line)
 	if len(words) == 0 {
 		return Empty
@@ -1240,7 +1292,8 @@ func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 
 	}
 	panic(fmt.Sprintf("Line %d: invalid line", lineNum+1))
-	// shouldn't even be possible to get this
+	// shouldn't even be possible to get this, sadly that's the most helpful
+	// error message i can possibly give there
 }
 
 func parseScopeCloser(lines []string, lineNum int) ScopeCloser { // greatest function of all time
@@ -1277,6 +1330,7 @@ func typeOfItem(item Transpileable) string {
 }
 
 func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope) Scope {
+	// parses whole scope parsing all lines in scope as items
 	newScope := Scope{
 		vars:      make(map[string]Variable),
 		arrays:    make(map[string]Array),
@@ -1337,6 +1391,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			continue
 		}
 
+		// match item type to how to parse the line:
 		switch T {
 		case VariableDeclaration:
 			declaration := parseVariableDeclaration(line, n, &newScope)
@@ -1414,7 +1469,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				panic(fmt.Sprintf("Line %d: Found return statement outside function scope", n+1))
 			}
 
-			// find expected type from function declaration above
+			// find expected type so that the statement can be parsed in case it is a literal
 			expectedType := findExpectedType(lines, n)
 
 			arrExpr := parseArrayExpression(line, expectedType, lineNum, &newScope)
