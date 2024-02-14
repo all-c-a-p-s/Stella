@@ -19,6 +19,7 @@ const (
 	FunctionDeclaration
 	VariableAssignment
 	ArrAssignment
+	ArrIndexAssignment
 	SelectionIf
 	SelectionElseIf
 	SelectionElse
@@ -549,7 +550,12 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 			_ = parseArrayDeclaration(lines[n], n, currentScope)
 		}
 		if exprCount >= 1 {
-			panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", n+1))
+			if len(strings.Trim(line, " ")) > 0 {
+				panic(fmt.Sprintf("Line %d: found dead code after expression in multi-line expression", n+1))
+			} else {
+				// blank lines are ok
+				continue
+			}
 		}
 		if isStatement(line) {
 			continue
@@ -702,8 +708,8 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	afterIdent := line[identEnd+1:]
 	afterWords := strings.Fields(afterIdent)
 
-	if len(afterWords) < 3 {
-		panic(fmt.Sprintf("Line %d: Expected return type annotation '->' and equals sign '=' after function indentifier", lineNum+1))
+	if len(afterWords) < 4 {
+		panic(fmt.Sprintf("Line %d: Expected return type annotation '->', type, equals sign '=' and '{' after function indentifier", lineNum+1))
 	}
 
 	if afterWords[0] != "->" {
@@ -733,7 +739,11 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	if afterWords[2] != "=" {
-		panic(fmt.Sprintf("Line %d: expected equals sign '=' after return type annotation ->", lineNum+1))
+		panic(fmt.Sprintf("Line %d: expected equals sign '=' after return type annotation -> and type", lineNum+1))
+	}
+
+	if afterWords[3] != "{" {
+		panic(fmt.Sprintf("Line %d: expexted block opener '{' after function declaration", lineNum+1))
 	}
 
 	exprStart := 0
@@ -1026,7 +1036,6 @@ func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignmen
 	}
 
 	v, ok := (currentScope).vars[words[0]]
-
 	if !ok {
 		panic(fmt.Sprintf("Line %d: first token of assignment does not match any variables in current scope", lineNum+1))
 	} else {
@@ -1110,6 +1119,17 @@ func assignmentType(line string, lineNum int, currentScope *Scope) itemType {
 	} else if isArray {
 		return ArrAssignment
 	}
+	for i := 0; i < len(words[0]); i++ {
+		if words[0][i] == '[' {
+			if i == 0 {
+				panic(fmt.Sprintf("Line %d: unexpected token [ at start of line", lineNum+1))
+			}
+			// -> expect array indexing
+			// should be parsed as variable because expression will be of primtive type
+			return ArrIndexAssignment
+		}
+	}
+	fmt.Println(currentScope)
 	panic(fmt.Sprintf("Line %d: assignment to variable %s not in scope", lineNum+1, words[0]))
 }
 
@@ -1240,6 +1260,7 @@ func parseScopeCloser(lines []string, lineNum int) ScopeCloser { // greatest fun
 }
 
 func typeOfItem(item Transpileable) string {
+	// used by transpiler to check if expressions are return statements
 	typeof := fmt.Sprintf("%v", reflect.TypeOf(item))
 	afterDot := false
 
@@ -1369,6 +1390,13 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 
 		case ArrAssignment:
 			assignment := parseArrayAssignment(lines[n], n, &newScope)
+			newScope.items = append(newScope.items, assignment)
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global arrays are not allowed in Stella", n))
+			}
+
+		case ArrIndexAssignment:
+			assignment := parseArrayIndexAssignment(lines[n], n, &newScope)
 			newScope.items = append(newScope.items, assignment)
 			if newScope.scopeType == Global {
 				panic(fmt.Sprintf("Line %d: global arrays are not allowed in Stella", n))

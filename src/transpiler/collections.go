@@ -47,6 +47,11 @@ type ArrayAssignment struct {
 	arr  Array
 }
 
+type ArrayIndexAssignment struct {
+	arrIndex ArrayIndexing
+	value    Expression
+}
+
 type ArrayExpression struct {
 	stringValue string
 	dataType    ArrayType
@@ -461,6 +466,61 @@ func parseArrayAssignment(line string, lineNum int, currentScope *Scope) ArrayAs
 	return ArrayAssignment{
 		arr:  arr,
 		expr: arrayExpr,
+	}
+}
+
+func parseArrayIndexAssignment(line string, lineNum int, currentScope *Scope) ArrayIndexAssignment {
+	words := strings.Fields(line)
+
+	var identifier string
+
+Loop:
+	for i := 0; i < len(words[0]); i++ {
+		switch words[0][i] {
+		case '[':
+			break Loop
+		default:
+			identifier += string(words[0][i])
+		}
+	}
+
+	var leftSideType primitiveType
+	arr, ok := (*currentScope).arrays[identifier]
+
+	indexing := parseArrayIndexing(words[0], lineNum, currentScope)
+
+	leftSideType = indexing.dataType.baseType
+	if ok {
+		if !arr.mut {
+			panic(fmt.Sprintf("Line %d: attempt to assign new value to element of immutable array %s", lineNum+1, identifier))
+		}
+	} else {
+		panic(fmt.Sprintf("Line %d: attempted assignment to array %s not in scope", lineNum+1, identifier))
+	}
+
+	var exprStart int
+
+	for i := 0; i < len(line); i++ {
+		if line[i] == '=' {
+			exprStart = i + 1
+			break
+		}
+	}
+
+	if exprStart == 0 || exprStart == len(line)-1 {
+		panic(fmt.Sprintf("Line %d: found no expression in assignment to variable %s", lineNum+1, identifier))
+	}
+
+	expr := line[exprStart:]
+	rightSide := parseExpression(expr, lineNum, currentScope)
+	if rightSide.dataType != leftSideType {
+		// should panic in parsing anyway, but maybe I'll change that later and forget
+		panic(fmt.Sprintf("Line %d: data type of right hand side of expression does not match data type of left hand side", lineNum+1))
+	}
+
+	return ArrayIndexAssignment{
+		arrIndex: indexing,
+		value:    rightSide,
 	}
 }
 

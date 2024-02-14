@@ -115,10 +115,20 @@ func (F Function) transpile() string {
 
 	transpiled += ")"
 
-	if F.returnType != IO {
-		transpiled += " " + F.returnType.String()
-		if F.returnType == Float {
+	if F.returnsDerived {
+		if len(F.derivedReturnType.dimensions) == 0 {
+			panic("shouldn't be possible to panic here 🙏")
+		}
+		transpiled += " " + "[" + fmt.Sprintf("%d", F.derivedReturnType.dimensions[0]) + "]" + F.derivedReturnType.baseType.String()
+		if F.derivedReturnType.baseType == Float {
 			transpiled += "64"
+		}
+	} else {
+		if F.returnType != IO {
+			transpiled += " " + F.returnType.String()
+			if F.returnType == Float {
+				transpiled += "64"
+			}
 		}
 	}
 
@@ -175,6 +185,18 @@ func (A ArrayAssignment) transpile() string {
 	return transpiled
 }
 
+func (A ArrayIndexAssignment) transpile() string {
+	var transpiled string
+	transpiled += A.arrIndex.arrayID
+	transpiled += "["
+	transpiled += A.arrIndex.index.transpile()
+	transpiled += "]"
+
+	transpiled += " = "
+	transpiled += A.value.transpile()
+	return transpiled
+}
+
 func (A ArrayExpression) transpile() string {
 	if strings.Trim(A.stringValue, " ")[0] == '[' {
 		// fine as there are no operators that work on arrays
@@ -208,7 +230,7 @@ func (s Scope) transpile() string {
 	for _, item := range s.items {
 		T := typeOfItem(item)
 
-		if T == "Expression" {
+		if T == "Expression" || T == "ArrayExpression" {
 			transpiled += "return " + item.transpile()
 			// only way for an expression to come alone
 		} else {

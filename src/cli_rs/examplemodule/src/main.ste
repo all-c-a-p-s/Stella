@@ -1,0 +1,19 @@
+function square(x: int) -> int = {
+  x * x
+}
+
+function add_one_to_all(nums: int[10]) -> int[10] = {
+  let mut res: int[10] = nums
+  let mut i: int = 0
+  loop i < 10 {
+    res[i] = res[i] + 1
+  }
+  res
+}
+
+function main() -> IO = {
+  println!("hi")
+  let nums: int[10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  let added: int[10] = add_one_to_all(nums)
+  println!(added[0])
+}
