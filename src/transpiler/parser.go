@@ -221,11 +221,11 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *Scope) Dec
 }
 
 func parseExpression(expression string, lineNum int, currentScope *Scope) Expression {
+	// parses any expression with any number of tokens
 	var parsed []string
 	var currentItem string
 	var bracketCount int
 
-	// TODO: account for string literal while parsing tokens
 	for i := 0; i < len(expression); i++ {
 		switch expression[i] { // split on operators and spaces
 		case '"':
