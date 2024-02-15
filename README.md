@@ -91,6 +91,15 @@ and indexed like this
 let first: int = nums[0]
 ```
 
+
+Tuples in Stella are collections of fixed data types (which can be different) in a fixed order:
+
+```
+let person1: (string, int) = ("mark", 60)
+print!(person1.0 + "'s age is ") //tuples are indexed using the .n syntax (zero-indexed)
+println!(person1.1)
+```
+
 ## TODO:
 
 vectors are arrays of dynamic size (heap allocated):
