@@ -19,6 +19,7 @@ type Scope struct {
 	vars      map[string]Variable
 	functions map[string]Function
 	arrays    map[string]Array
+	tuples    map[string]Tuple
 	parent    *Scope
 	items     []Transpileable
 	scopeType ScopeType
@@ -31,8 +32,9 @@ type Location struct {
 }
 
 var (
-	packageName string
-	imports     []string
+	tupleImports []int
+	packageName  string
+	imports      []string
 )
 
 func check(err error) {
@@ -137,8 +139,17 @@ func TranspileTarget(path string) string {
 		transpiled += "\n"
 	}
 
-	transpiled += "\n"
+	tupImports := map[int]struct{}{}
+	for _, n := range tupleImports {
+		tupImports[n] = struct{}{}
+	}
 
+	for k := range tupImports {
+		transpiled += generateTupleCode(k)
+		transpiled += "\n\n"
+	}
+
+	transpiled += "\n"
 	transpiled += globalScope.transpile()
 	return transpiled
 }

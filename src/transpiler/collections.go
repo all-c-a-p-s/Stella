@@ -55,6 +55,7 @@ type ArrayIndexAssignment struct {
 type ArrayExpression struct {
 	stringValue string
 	dataType    ArrayType
+	literal     BaseArray // optional - needed for transpile()
 }
 
 func squareBracketEnd(s string, start, lineNum int) int {
@@ -260,7 +261,7 @@ func parseArrayValue[T primitiveType](arrayValue string, expectedType primitiveT
 					subArrayValue = arrayValue[i : end+1]
 				}
 				child := parseArrayValue[T](subArrayValue, expectedType, currentScope, lineNum)
-				// recusrive call on elements of current array
+				// recursive call on elements of current array
 				children = append(children, &child)
 			}
 		}
@@ -308,6 +309,8 @@ func parseArrayDeclaration(line string, lineNum int, currentScope *Scope) ArrayD
 	} else if _, f := (*currentScope).functions[id]; f {
 		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
 	} else if _, a := (*currentScope).arrays[id]; a {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, t := (*currentScope).tuples[id]; t {
 		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
 	}
 
@@ -558,6 +561,7 @@ func parseArrayExpression(expr string, expectedType primitiveType, lineNum int, 
 				baseType:   T.dataType,
 				dimensions: []int{T.length},
 			},
+			literal: T,
 		}
 	}
 
@@ -577,9 +581,12 @@ Loop:
 			currentString += string(expr[i])
 		}
 	}
+	currentString = strings.Trim(currentString, " ")
 	if fn, ok := (*currentScope).functions[currentString]; ok {
 		// functions returning derived type
-		if fn.returnsDerived {
+		if fn.returnDomain == derived {
+			_ = parseFunctionCall(strings.Trim(expr, " "), lineNum, currentScope)
+			//check that function call is actually valid
 			return ArrayExpression{
 				stringValue: expr,
 				dataType:    fn.derivedReturnType,
@@ -594,6 +601,7 @@ func parseMultiLineArrayExpression(lines []string, lineNum int, expectedType pri
 	varsCopy := make(map[string]Variable) // used to later restore currentScope.vars to original
 	// so that when variable declarations are actually parsed they don't throw an already declared error
 	arraysCopy := make(map[string]Array)
+	tuplesCopy := make(map[string]Tuple)
 
 	for k, v := range (*currentScope).vars {
 		varsCopy[k] = v
@@ -601,6 +609,10 @@ func parseMultiLineArrayExpression(lines []string, lineNum int, expectedType pri
 
 	for k, v := range (*currentScope).arrays {
 		arraysCopy[k] = v
+	}
+
+	for k, v := range (*currentScope).tuples {
+		tuplesCopy[k] = v
 	}
 	// copy as reference types
 
@@ -642,21 +654,25 @@ func parseMultiLineArrayExpression(lines []string, lineNum int, expectedType pri
 	}
 
 	if exprLine == -1 {
-		panic(fmt.Sprintf("Line %d: found no returned value if function", lineNum+1))
+		panic(fmt.Sprintf("Line %d: found no returned value in function", lineNum+1))
 	}
 
 	to_return := parseArrayExpression(expr, expectedType, exprLine, currentScope)
 	(*currentScope).vars = varsCopy
 	(*currentScope).arrays = arraysCopy
+	(*currentScope).tuples = tuplesCopy
 
 	return to_return
 }
 
 func findExpectedType(lines []string, lineNum int) primitiveType {
-	// needs to loop backwards through lines to find function declartion with return type typeAnnotation
+	// needs to loop backwards through lines to find function declaration with return type typeAnnotation
 	// doesn't really need error checking as function declaration will already have been parsed
 	for i := lineNum; i >= 0; i-- {
 		words := strings.Fields(lines[i])
+		if len(words) == 0 {
+			continue
+		}
 		if words[0] == "function" {
 			typeAnnotation := words[len(words)-3] // not = or {
 			expectedType := parseArrayType(typeAnnotation, i)

@@ -2,7 +2,6 @@ package transpiler
 
 import (
 	"fmt"
-	"strings"
 )
 
 //line which is just "}"
@@ -14,11 +13,38 @@ type Transpileable interface {
 	transpile() string
 }
 
+func generateTupleCode(n int) string {
+	// generates struct that needs to be added to top of Go file
+	// when tuple of size n is used
+	var transpiled string
+	transpiled += "type tuple"
+	transpiled += fmt.Sprintf("%d", n) + "["
+	for i := 0; i < n; i++ {
+		transpiled += "T" + fmt.Sprintf("%d", i) + " any"
+		if i != n-1 {
+			transpiled += ", "
+		}
+	}
+	transpiled += "]" + " struct {"
+	transpiled += "\n"
+	for i := 0; i < n; i++ {
+		transpiled += "v" + fmt.Sprintf("%d", i) + " T" + fmt.Sprintf("%d", i)
+		transpiled += "\n"
+	}
+	transpiled += "}"
+
+	return transpiled
+}
+
 func (E Expression) transpile() string {
 	items := E.items
 	var transpiled string
 	for _, item := range items {
-		transpiled += item
+		if isTupleIndexing(item) {
+			transpiled += transpileTupleIndexing(item)
+		} else {
+			transpiled += item
+		}
 		transpiled += " "
 	}
 	if len(transpiled) != 0 {
@@ -82,7 +108,7 @@ func (F Function) transpile() string {
 	transpiled += F.identifier
 	transpiled += "("
 
-	var varCount, arrCount int
+	var varCount, arrCount, tupCount int
 
 	for i, t := range F.paramsOrder {
 		if t == VariableParameter {
@@ -97,6 +123,34 @@ func (F Function) transpile() string {
 				transpiled += ", "
 			}
 			varCount++
+		} else if t == TupleParameter {
+			t := F.tuples[tupCount]
+			transpiled += t.identifier
+			transpiled += " tuple"
+			transpiled += fmt.Sprintf("%d", len(t.pattern.dataTypes))
+			transpiled += "["
+			for i, T := range t.pattern.dataTypes {
+				switch T {
+				case Int:
+					transpiled += "int"
+				case Float:
+					transpiled += "float64"
+				case Bool:
+					transpiled += "bool"
+				case Byte:
+					transpiled += "byte"
+				case String:
+					transpiled += "string"
+				}
+				if i != len(t.pattern.dataTypes)-1 {
+					transpiled += ", "
+				}
+			}
+			transpiled += "]"
+			if i != len(F.paramsOrder)-1 {
+				transpiled += ", "
+			}
+			tupCount++
 		} else {
 			arr := F.arrays[arrCount]
 			transpiled += arr.identifier
@@ -115,7 +169,30 @@ func (F Function) transpile() string {
 
 	transpiled += ")"
 
-	if F.returnsDerived {
+	if F.returnDomain == tuple {
+		T := F.tupleReturnType
+		transpiled += " " + "tuple"
+		transpiled += fmt.Sprintf("%d", len(T.dataTypes))
+		transpiled += "["
+		for i, dataType := range T.dataTypes {
+			switch dataType {
+			case Int:
+				transpiled += "int"
+			case Float:
+				transpiled += "float64"
+			case Bool:
+				transpiled += "bool"
+			case Byte:
+				transpiled += "byte"
+			case String:
+				transpiled += "string"
+			}
+			if i != len(T.dataTypes)-1 {
+				transpiled += ", "
+			}
+		}
+		transpiled += "]"
+	} else if F.returnDomain == derived {
 		if len(F.derivedReturnType.dimensions) == 0 {
 			panic("shouldn't be possible to panic here 🙏")
 		}
@@ -198,15 +275,145 @@ func (A ArrayIndexAssignment) transpile() string {
 }
 
 func (A ArrayExpression) transpile() string {
-	if strings.Trim(A.stringValue, " ")[0] == '[' {
+	if len(A.literal.values) > 0 {
 		// fine as there are no operators that work on arrays
-
-		s := Scope{}
-		literal := parseArrayValue(A.stringValue, A.dataType.baseType, &s, 0)
-		//^ should be impossible for line above to panic 🙏
-		return literal.transpile()
+		return A.literal.transpile()
 	}
 	return A.stringValue
+	// fine as function call can't contain literals
+}
+
+func (B BaseArray) transpile() string {
+	var transpiled string
+	transpiled += "[" + fmt.Sprintf("%d", B.length) + "]"
+
+	if B.dataType != Float {
+		transpiled += B.dataType.String()
+	} else {
+		transpiled += B.dataType.String() + "64"
+	}
+	transpiled += "{"
+	for i, elem := range B.values {
+		transpiled += elem.transpile()
+		if i != len(B.values)-1 {
+			transpiled += ", "
+		}
+	}
+	transpiled += "}"
+
+	return transpiled
+}
+
+func (T TupleLiteral) transpile() string {
+	// necessary struct and interface already created above
+	var transpiled string
+	transpiled += " tuple"
+	transpiled += fmt.Sprintf("%d", len(T.values))
+	transpiled += "["
+	for i, expr := range T.values {
+		switch expr.dataType {
+		case Int:
+			transpiled += "int"
+		case Float:
+			transpiled += "float64"
+		case Bool:
+			transpiled += "bool"
+		case Byte:
+			transpiled += "byte"
+		case String:
+			transpiled += "string"
+		}
+		if i != len(T.values)-1 {
+			transpiled += ", "
+		}
+	}
+	transpiled += "]"
+	transpiled += "{"
+	for i, e := range T.values {
+		transpiled += "v" + fmt.Sprintf("%d", i) + ":" + " "
+		transpiled += e.transpile()
+		if i != len(T.values)-1 {
+			transpiled += ", "
+		}
+	}
+	transpiled += "}"
+	return transpiled
+}
+
+func (F FunctionCall) transpile() string {
+	var transpiled string
+	transpiled += F.functionName + "("
+	var varCount, arrCount, tupCount int
+	for i := 0; i < len(F.order); i++ {
+		switch F.order[i] {
+		case VariableParameter:
+			transpiled += F.parameters[varCount].transpile()
+			varCount++
+		case ArrayParameter:
+			transpiled += F.arrays[arrCount].identifier
+			arrCount++
+		case TupleParameter:
+			transpiled += F.tuples[tupCount].identifier
+			tupCount++
+		}
+		if i != len(F.order)-1 {
+			transpiled += ", "
+		}
+	}
+	transpiled += ")"
+	return transpiled
+}
+
+func (T TupleExpression) transpile() string {
+	if T.exprType == Literal {
+		return T.literal.transpile()
+	} else if T.exprType == FnCall {
+		return T.fnCall.transpile()
+	}
+	return T.t.identifier
+}
+
+func (T TupleDeclaration) transpile() string {
+	transpiled := "var "
+	transpiled += T.t.identifier + " "
+	transpiled += " tuple"
+	transpiled += fmt.Sprintf("%d", len(T.t.pattern.dataTypes))
+	transpiled += "["
+	for i, dataType := range T.t.pattern.dataTypes {
+		switch dataType {
+		case Int:
+			transpiled += "int"
+		case Float:
+			transpiled += "float64"
+		case Bool:
+			transpiled += "bool"
+		case Byte:
+			transpiled += "byte"
+		case String:
+			transpiled += "string"
+		}
+		if i != len(T.t.pattern.dataTypes)-1 {
+			transpiled += ", "
+		}
+	}
+	transpiled += "]"
+	transpiled += " = "
+	transpiled += T.e.transpile()
+	return transpiled
+}
+
+func (T TupleAssignment) transpile() string {
+	transpiled := T.t.identifier
+	transpiled += " = "
+	transpiled += T.e.transpile()
+	return transpiled
+}
+
+func (T TupleIndexing) transpile() string {
+	transpiled := T.t.identifier
+	transpiled += "."
+	transpiled += "v" + fmt.Sprintf("%d", T.i)
+	return transpiled
 }
 
 func (M Macro) transpile() string {
@@ -216,6 +423,8 @@ func (M Macro) transpile() string {
 		transpiled += "fmt.Print"
 	case Println:
 		transpiled += "fmt.Println"
+	case Panic:
+		transpiled += "panic"
 	default:
 		panic("macro not supported by transpile()")
 	}
@@ -230,7 +439,7 @@ func (s Scope) transpile() string {
 	for _, item := range s.items {
 		T := typeOfItem(item)
 
-		if T == "Expression" || T == "ArrayExpression" {
+		if T == "Expression" || T == "ArrayExpression" || T == "TupleExpression" {
 			transpiled += "return " + item.transpile()
 			// only way for an expression to come alone
 		} else {

@@ -254,6 +254,23 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 		if v, ok := (*currentScope).vars[expr[0]]; ok {
 			return v.dataType
 		}
+
+		if expr[0][0] != '"' { // check for tuple indexing
+			fullStopIndex := -1
+			for i := 0; i < len(expr[0]); i++ {
+				if expr[0][i] == '.' {
+					fullStopIndex = i
+				}
+			}
+
+			if fullStopIndex != -1 {
+				if _, ok := (*currentScope).tuples[expr[0][:fullStopIndex]]; ok {
+					idx := parseTupleIndexing(expr[0], lineNum, currentScope)
+					return idx.t.pattern.dataTypes[idx.i]
+				}
+			}
+		}
+
 		return getValType(expr[0], lineNum) // not operator, variable or function
 	} else if len(expr) == 2 {
 		// also base case as this can only be unary operator and expression of length 1

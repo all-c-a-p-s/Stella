@@ -11,14 +11,17 @@ type (
 	selectionType int
 	charType      int
 	parameterType int
+	returnDomain  int
 )
 
 const (
 	VariableDeclaration itemType = iota
 	ArrDeclaration
+	TupDeclaration
 	FunctionDeclaration
 	VariableAssignment
 	ArrAssignment
+	TupAssignment
 	ArrIndexAssignment
 	SelectionIf
 	SelectionElseIf
@@ -27,6 +30,7 @@ const (
 	LoopBreakStatement
 	ReturnStatement
 	DerivedReturnStatement
+	TupleReturnStatement
 	ScopeClose
 	MacroItem
 	Empty
@@ -48,6 +52,13 @@ const (
 const (
 	VariableParameter parameterType = iota
 	ArrayParameter
+	TupleParameter
+)
+
+const (
+	primitive returnDomain = iota
+	derived
+	tuple
 )
 
 type Variable struct {
@@ -66,7 +77,8 @@ type Declaration struct {
 type FunctionCall struct {
 	functionName string
 	parameters   []Expression
-	arrays       []Array
+	arrays       []Array // can't be a literal as type would need to be inferred from literal
+	tuples       []Tuple // as above
 	order        []parameterType
 }
 
@@ -87,11 +99,13 @@ type SelectionStatement struct {
 type Function struct {
 	parameters        []Variable
 	arrays            []Array
+	tuples            []Tuple
 	paramsOrder       []parameterType
 	identifier        string
-	derivedReturnType ArrayType
-	returnType        primitiveType
-	returnsDerived    bool
+	tupleReturnType   TuplePattern  // optional
+	derivedReturnType ArrayType     // optional
+	returnType        primitiveType // optional - at least one of optionals must be present (dictated by returnDomain field)
+	returnDomain      returnDomain
 }
 
 type Expression struct {
@@ -177,6 +191,8 @@ func parseVariableDeclaration(line string, lineNum int, currentScope *Scope) Dec
 	} else if _, f := (*currentScope).functions[id]; f {
 		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
 	} else if _, a := (*currentScope).arrays[id]; a {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, t := (*currentScope).tuples[id]; t {
 		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
 	}
 
@@ -332,6 +348,8 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 		panic(fmt.Sprintf("Line %d: invalid brackets in expression", lineNum+1))
 	}
 
+	// fmt.Println(parsed)
+
 	var previous, next string
 
 	// check that sequence/types of tokens is valid
@@ -351,7 +369,7 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 		_, binaryOperator := binaryOperators()[token]
 		_, unaryOperator := unaryOperators()[token]
 		if token == "(" || token == ")" || token == "{" || token == "}" {
-			// brackets don't matter as we only need to check the typeo of token that follows
+			// brackets don't matter as we only need to check the type of token that follows
 			continue
 		}
 
@@ -389,18 +407,33 @@ func checkValue(value, previous, next string, lineNum int, currentScope *Scope) 
 		panic(fmt.Sprintf("Line %d: Expected value before operator", lineNum+1))
 	}
 
+	if _, ok := numbers()[string(value[0])]; ok { // check numeric literal
+		getValType(value, lineNum)
+		return
+	}
+
 	identifier := false
 
+	var stringLiteral bool
 	for i := 0; i < len(value); i++ {
-		if value[i] == '(' {
-			fnCall := parseFunctionCall(value, lineNum, currentScope)
-			if _, ok := currentScope.functions[fnCall.functionName]; ok {
-				identifier = true
+		if value[i] == '"' {
+			stringLiteral = !stringLiteral
+		}
+		if !stringLiteral {
+			if value[i] == '(' { // cannot be tuple literal as indexing raw tuple literal in a primitive expression isn't allowed
+				fnCall := parseFunctionCall(value, lineNum, currentScope)
+				if _, ok := currentScope.functions[fnCall.functionName]; ok {
+					identifier = true
+				}
+				return
+			} else if value[i] == '[' {
+				_ = parseArrayIndexing(value, lineNum, currentScope)
+				// check for valid array indexing
+				return
+			} else if value[i] == '.' {
+				_ = parseTupleIndexing(value, lineNum, currentScope)
+				return
 			}
-		} else if value[i] == '[' {
-			_ = parseArrayIndexing(value, lineNum, currentScope)
-			// check for valid array indexing
-			return
 		}
 	}
 
@@ -525,6 +558,7 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 	varsCopy := make(map[string]Variable) // used to later restore currentScope.vars to original
 	// so that when variable declarations are actually parsed they don't throw an already declared error
 	arraysCopy := make(map[string]Array)
+	tuplesCopy := make(map[string]Tuple)
 
 	for k, v := range (*currentScope).vars {
 		varsCopy[k] = v
@@ -532,6 +566,10 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 
 	for k, v := range (*currentScope).arrays {
 		arraysCopy[k] = v
+	}
+
+	for k, v := range (*currentScope).tuples {
+		tuplesCopy[k] = v
 	}
 
 	// manual copy as maps are reference types
@@ -562,6 +600,8 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 			_ = parseVariableDeclaration(lines[n], n, currentScope)
 		} else if getItemType(lines[n], n, currentScope) == ArrDeclaration {
 			_ = parseArrayDeclaration(lines[n], n, currentScope)
+		} else if getItemType(lines[n], n, currentScope) == TupDeclaration {
+			_ = parseTupleDeclaration(lines[n], n, currentScope)
 		}
 		if exprCount >= 1 {
 			if len(strings.Trim(line, " ")) > 0 {
@@ -581,6 +621,7 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 	if exprLine == -1 {
 		(*currentScope).vars = varsCopy
 		(*currentScope).arrays = arraysCopy
+		(*currentScope).tuples = tuplesCopy
 		return Expression{
 			items:    []string{},
 			dataType: IO,
@@ -589,42 +630,111 @@ func parseMultiLineExpression(lines []string, lineNum int, currentScope *Scope) 
 	to_return := parseExpression(expr, exprLine, currentScope)
 	(*currentScope).vars = varsCopy
 	(*currentScope).arrays = arraysCopy
+	(*currentScope).tuples = tuplesCopy
 	// return maps to original
 	return to_return
 }
 
-func parseParameters(params string, lineNum int) ([]Variable, []Array, []parameterType) {
-	fields := strings.Split(params, ",")
-	if fields[0] == "" {
-		return []Variable{}, []Array{}, []parameterType{}
+func parseParameters(params string, lineNum int) ([]Variable, []Array, []Tuple, []parameterType) {
+	// get function parameters into fields
+	// cannot just split on commas as this can include function calls, tuples
+	var fields []string
+	var currentString string
+	var stringLiteral bool
+	var bracketCount int
+	for i := 0; i < len(params); i++ {
+		if params[i] == '"' {
+			stringLiteral = !stringLiteral
+		}
+		switch params[i] {
+		case '(':
+			if !stringLiteral {
+				bracketCount++
+			}
+			currentString += string(params[i])
+		case ')':
+			if !stringLiteral {
+				bracketCount--
+			}
+			currentString += string(params[i])
+		case ',':
+			if stringLiteral {
+				currentString += string(params[i])
+				continue
+			}
+			if bracketCount == 0 { // params string doesn't include enclosing brackets
+				if len(currentString) != 0 {
+					fields = append(fields, strings.Trim(currentString, " "))
+					currentString = ""
+				}
+			} else {
+				currentString += string(params[i])
+			}
+		default:
+			currentString += string(params[i])
+		}
+
+		if i == len(params)-1 {
+			if len(currentString) == 0 {
+				break
+			}
+			fields = append(fields, strings.Trim(currentString, " "))
+			currentString = ""
+		}
 	}
-	// will remove the commas
+	if len(fields) == 0 {
+		return []Variable{}, []Array{}, []Tuple{}, []parameterType{}
+	}
+
 	var variables []Variable
 	var arrays []Array
+	var tuples []Tuple
 	var paramTypes []parameterType
 
 	for _, param := range fields {
-		words := strings.Fields(param)
-		if len(words) != 2 {
-			panic(fmt.Sprintf("Line %d: invalid element in list of parameters", lineNum+1))
+		var name string
+		var nameEnd int
+		for i := 0; i < len(param); i++ {
+			if param[i] == ' ' { // first space must be after name
+				nameEnd = i
+				break
+			}
+			name += string(param[i])
 		}
-
-		if words[0][len(words[0])-1] != ':' {
-			panic(fmt.Sprintf("Line %d: the last character of the parameter declaration %s is not a colon ':', which is required for a type annotation of the parameter", lineNum+1, words[0]))
+		if nameEnd == len(param)-1 {
+			panic(fmt.Sprintf("Line %d: found no type annotation after function parameter", lineNum+1))
 		}
-		ident := parseIdentifier(words[0], lineNum)
+		dataType := strings.Trim(param[nameEnd+1:], " ")
 
-		var isArr bool
-		for i := 0; i < len(words[1]); i++ {
-			if words[1][i] == '[' {
-				isArr = true
+		if name[len(name)-1] != ':' {
+			panic(fmt.Sprintf("Line %d: the last character of the parameter declaration %s is not a colon ':', which is required for a type annotation of the parameter", lineNum+1, name))
+		}
+		ident := parseIdentifier(name, lineNum)
+
+		var isTup, isArr bool
+		if dataType[0] == '(' {
+			isTup = true
+		} else {
+			for i := 0; i < len(dataType); i++ {
+				if dataType[i] == '[' {
+					isArr = true
+				}
 			}
 		}
 
-		// arrays and variable parameters put in seperate slices
+		// arrays and variable parameters put in separate slices
 		// with a separate slice dictating the order
-		if isArr {
-			arrT := parseArrayType(words[1], lineNum)
+		if isTup {
+			pattern := parseTuplePattern(dataType, lineNum)
+			newTup := Tuple{
+				identifier: ident,
+				pattern:    pattern,
+				mut:        false,
+			}
+			tuples = append(tuples, newTup)
+			paramTypes = append(paramTypes, TupleParameter)
+		} else if isArr {
+			arrT := parseArrayType(dataType, lineNum)
 			newArr := Array{
 				identifier: ident,
 				dataType:   arrT,
@@ -633,7 +743,7 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []paramet
 			arrays = append(arrays, newArr)
 			paramTypes = append(paramTypes, ArrayParameter)
 		} else {
-			T := readType(words[1], lineNum)
+			T := readType(dataType, lineNum)
 			if T == IO {
 				panic(fmt.Sprintf("Line %d: function parameters cannot have type IO", lineNum+1))
 			}
@@ -648,7 +758,7 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []paramet
 		}
 
 	}
-	return variables, arrays, paramTypes
+	return variables, arrays, tuples, paramTypes
 }
 
 //	function square(x: int) -> int = {
@@ -687,6 +797,8 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
 	} else if _, a := (*currentScope).arrays[identifier]; a {
 		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
+	} else if _, t := (*currentScope).tuples[identifier]; t {
+		panic(fmt.Sprintf("Line %d: %s already defined in this scope", lineNum+1, id))
 	}
 
 	var paramsBytes []byte
@@ -703,7 +815,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 				identEnd = i
 			}
 		}
-		if bracketCount == 1 || done {
+		if bracketCount > 0 || done {
 			paramsBytes = append(paramsBytes, line[i])
 		}
 		if done {
@@ -717,7 +829,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	pStr := string(paramsBytes[1 : len(paramsBytes)-1])
-	parameters, arrays, order := parseParameters(pStr, lineNum)
+	parameters, arrays, tuples, order := parseParameters(pStr, lineNum)
 
 	for _, p := range parameters {
 		(*currentScope).vars[p.identifier] = p
@@ -727,12 +839,50 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		(*currentScope).arrays[arr.identifier] = arr
 	}
 
+	for _, tup := range tuples {
+		(*currentScope).tuples[tup.identifier] = tup
+	}
+
 	afterIdent := line[identEnd+1:]
-	afterWords := strings.Fields(afterIdent)
+	var afterWords []string
+
+	if identEnd == len(line)-1 {
+		panic(fmt.Sprintf("Line %d: function declaration is invalid because there is no return type annotation and no block opened", lineNum+1))
+	}
+
+	var bracketCount2 int
+	var currentString string
+	for i := identEnd + 1; i < len(line); i++ {
+		switch line[i] {
+		case '(':
+			currentString += string(line[i])
+			bracketCount2++
+		case ')':
+			currentString += string(line[i])
+			bracketCount2--
+		case ' ':
+			if bracketCount2 == 0 {
+				if len(currentString) > 0 {
+					afterWords = append(afterWords, currentString)
+					currentString = ""
+				}
+			} else {
+				currentString += string(line[i])
+			}
+		default:
+			currentString += string(line[i])
+		}
+		if i == len(line)-1 {
+			if len(currentString) != 0 {
+				afterWords = append(afterWords, currentString)
+			}
+		}
+	}
 
 	// go through patterns the function can match:
+
 	if len(afterWords) < 4 {
-		panic(fmt.Sprintf("Line %d: expected return type annotation '->', type, equals sign '=' and '{' after function indentifier", lineNum+1))
+		panic(fmt.Sprintf("Line %d: expected return type annotation '->', type, equals sign '=' and '{' after function identifier", lineNum+1))
 	}
 
 	if afterWords[0] != "->" {
@@ -740,22 +890,28 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	typeAnnotation := afterWords[1]
-	var returnsDerived bool
-	// separate struct fields for derived return type and primitive return type
+	var returnDomain returnDomain
+	// separate struct fields for derived, primitive, tuple return type
 	// one will get value assigned and other will take default value
 	// returnsDerived struct field dictated which is used
 
+	if typeAnnotation[0] == '(' {
+		returnDomain = tuple
+	}
 	for i := 0; i < len(typeAnnotation); i++ {
 		if typeAnnotation[i] == '[' {
-			returnsDerived = true
+			returnDomain = derived
 		}
 	}
 
 	var derivedReturnType ArrayType
 	var returnType primitiveType
+	var tuplePattern TuplePattern
 
-	if returnsDerived {
+	if returnDomain == derived {
 		derivedReturnType = parseArrayType(typeAnnotation, lineNum)
+	} else if returnDomain == tuple {
+		tuplePattern = parseTuplePattern(typeAnnotation, lineNum)
 	} else {
 		returnType = readType(afterWords[1], lineNum)
 		if returnType == IO {
@@ -770,7 +926,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	}
 
 	if afterWords[3] != "{" {
-		panic(fmt.Sprintf("Line %d: expexted block opener '{' after function declaration", lineNum+1))
+		panic(fmt.Sprintf("Line %d: expected block opener '{' after function declaration", lineNum+1))
 	}
 
 	exprStart := 0
@@ -784,7 +940,10 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		panic(fmt.Sprintf("Line %d: found no returned expression from function", lineNum+1))
 	}
 
-	if returnsDerived {
+	if returnDomain == tuple {
+		_ = parseMultiLineTupleExpression(lines, lineNum, tuplePattern, currentScope)
+		// ^ already checks pattern match
+	} else if returnDomain == derived {
 		// parse multi-line array expression and check match to return type
 		var arrExpression ArrayExpression
 		if strings.Trim(lines[lineNum][exprStart:], " ")[0] != '{' {
@@ -819,11 +978,13 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	f := Function{
 		parameters:        parameters,
 		arrays:            arrays,
+		tuples:            tuples,
 		paramsOrder:       order,
 		returnType:        returnType,
 		identifier:        identifier,
-		returnsDerived:    returnsDerived,
+		returnDomain:      returnDomain,
 		derivedReturnType: derivedReturnType,
+		tupleReturnType:   tuplePattern,
 	}
 
 	(*currentScope).functions[f.identifier] = f
@@ -831,6 +992,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	return f
 }
 
+// TODO: tuples as parameters
 func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) FunctionCall {
 	var ident, params string
 
@@ -905,8 +1067,9 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 
 	var parameterExpressions []Expression
 	var arrays []Array
+	var tuples []Tuple
 
-	var variableCount, arrayCount int
+	var variableCount, arrayCount, tupleCount int
 
 	for i := 0; i < len(fn.paramsOrder); i++ {
 		// check that order and types of parameters matches expected order of
@@ -919,13 +1082,16 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			}
 			parameterExpressions = append(parameterExpressions, expression)
 			variableCount++
-		} else {
+		} else if fn.paramsOrder[i] == ArrayParameter {
+			if strings.Trim(parameterExprs[i], " ")[0] == '[' {
+				panic(fmt.Sprintf("Line %d: cannot use array literal as function parameter. Try making a variable (with a type annotation) and passing it instead", lineNum+1))
+			}
 			// match derived parameter type
 			expectedType := fn.arrays[arrayCount].dataType.baseType
 			arrayExpression := parseArrayExpression(parameterExprs[i], expectedType, lineNum, currentScope)
 			if arrayExpression.dataType.baseType == fn.arrays[arrayCount].dataType.baseType {
 				if len(arrayExpression.dataType.dimensions) != len(fn.arrays[arrayCount].dataType.dimensions) {
-					panic(fmt.Sprintf("Line %dL expression does not have same number of dimensions as array parameter", lineNum+1))
+					panic(fmt.Sprintf("Line %d: expression does not have same number of dimensions as array parameter", lineNum+1))
 				}
 				for i := 0; i < len(arrayExpression.dataType.dimensions); i++ {
 					if arrayExpression.dataType.dimensions[i] != fn.arrays[arrayCount].dataType.dimensions[i] {
@@ -941,6 +1107,19 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			}
 			arrays = append(arrays, arr)
 			arrayCount++
+		} else {
+			if strings.Trim(parameterExprs[i], " ")[0] == '(' {
+				panic(fmt.Sprintf("Line %d: cannot use tuple literal as function parameter. Try making a variable (with a type annotation) and passing it instead", lineNum+1))
+			}
+			// match tuple type
+			expectedPattern := fn.tuples[tupleCount].pattern
+			_ = parseTupleExpression(parameterExprs[i], expectedPattern, lineNum, currentScope)
+			// ^ already checks that it matches the pattern
+			tup := Tuple{
+				pattern: expectedPattern,
+			}
+			tuples = append(tuples, tup)
+			tupleCount++
 		}
 	}
 
@@ -948,6 +1127,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 		functionName: ident,
 		parameters:   parameterExpressions,
 		arrays:       arrays,
+		tuples:       tuples,
 		order:        fn.paramsOrder,
 	}
 }
@@ -1074,7 +1254,7 @@ func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignmen
 		panic(fmt.Sprintf("Line %d: invalid assignment", lineNum+1))
 	}
 
-	// check that variable is in scope and that expression mathces correct type:
+	// check that variable is in scope and that expression matches correct type:
 
 	v, ok := (currentScope).vars[words[0]]
 	if !ok {
@@ -1106,7 +1286,7 @@ func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignmen
 	expression := parseExpression(expr, lineNum, currentScope)
 
 	if expression.dataType != v.dataType {
-		panic(fmt.Sprintf("Line %d: cannot assign epression of type %v to variable of type %v", lineNum+1, expression.dataType, v.dataType))
+		panic(fmt.Sprintf("Line %d: cannot assign expression of type %v to variable of type %v", lineNum+1, expression.dataType, v.dataType))
 	}
 
 	return Assignment{
@@ -1144,6 +1324,10 @@ func declarationType(line string, lineNum int) itemType {
 	typeIndex := identifierIndex + 1
 	typeWord := words[typeIndex]
 
+	if typeWord[0] == '(' {
+		return TupDeclaration
+	}
+
 	for i := 0; i < len(typeWord); i++ {
 		if typeWord[i] == '[' {
 			return ArrDeclaration
@@ -1160,10 +1344,13 @@ func assignmentType(line string, lineNum int, currentScope *Scope) itemType {
 	}
 	_, isVar := (*currentScope).vars[words[0]]
 	_, isArray := (*currentScope).arrays[words[0]]
+	_, isTuple := (*currentScope).tuples[words[0]]
 	if isVar {
 		return VariableAssignment
 	} else if isArray {
 		return ArrAssignment
+	} else if isTuple {
+		return TupAssignment
 	}
 	for i := 0; i < len(words[0]); i++ {
 		if words[0][i] == '[' {
@@ -1171,16 +1358,16 @@ func assignmentType(line string, lineNum int, currentScope *Scope) itemType {
 				panic(fmt.Sprintf("Line %d: unexpected token [ at start of line", lineNum+1))
 			}
 			// -> expect array indexing
-			// should be parsed as variable because expression will be of primtive type
+			// should be parsed as variable because expression will be of primitive type
 			return ArrIndexAssignment
 		}
 	}
-	fmt.Println(currentScope)
 	panic(fmt.Sprintf("Line %d: assignment to variable %s not in scope", lineNum+1, words[0]))
 }
 
-func returnStatementType(line string, lineNum int, currentScope *Scope) itemType {
-	// identify whether a line is a primitive or derived-type return statement
+func returnStatementType(l string, lineNum int, currentScope *Scope) itemType {
+	// identify whether a line is a primitive, derived or tuple return statement
+	line := strings.Trim(l, " ")
 	var currentString string
 	var stringCount int
 Loop:
@@ -1193,6 +1380,10 @@ Loop:
 				stringCount = 0
 			}
 		case '(':
+			if i == 0 {
+				// cannot be function call -> must be tuple literal
+				return TupleReturnStatement
+			}
 			break Loop
 		default:
 			if stringCount == 0 {
@@ -1210,8 +1401,10 @@ Loop:
 	if len(currentString) != 0 {
 		if fn, ok := (*currentScope).functions[currentString]; ok {
 			// match to return type of called function
-			if fn.returnsDerived {
+			if fn.returnDomain == derived {
 				return DerivedReturnStatement
+			} else if fn.returnDomain == tuple {
+				return TupleReturnStatement
 			}
 			return ReturnStatement
 		} else {
@@ -1331,10 +1524,12 @@ func typeOfItem(item Transpileable) string {
 
 func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope) Scope {
 	// parses whole scope parsing all lines in scope as items
+	// TODO: copy tuple maps etc.
 	newScope := Scope{
 		vars:      make(map[string]Variable),
 		arrays:    make(map[string]Array),
 		functions: make(map[string]Function),
+		tuples:    make(map[string]Tuple),
 		scopeType: scopeType,
 		items:     []Transpileable{},
 		parent:    parent,
@@ -1356,6 +1551,12 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 		for k, v := range (*parent).arrays {
 			newScope.arrays[k] = v
 		}
+
+		newScope.tuples = make(map[string]Tuple)
+		for k, v := range (*parent).tuples {
+			newScope.tuples[k] = v
+		}
+
 	}
 
 	// NOTE: should be called inluding opening line
@@ -1407,6 +1608,13 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				panic(fmt.Sprintf("Line %d: global arrays are not allowed in Stella", n))
 			}
 
+		case TupDeclaration:
+			declaration := parseTupleDeclaration(line, n, &newScope)
+			newScope.items = append(newScope.items, declaration)
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("line %d: global tuples are not allowed in Stella", n))
+			}
+
 		case FunctionDeclaration:
 			subScope := Scope{}
 
@@ -1424,6 +1632,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			subScope.arrays = make(map[string]Array)
 			for k, v := range newScope.arrays {
 				subScope.arrays[k] = v
+			}
+
+			subScope.tuples = make(map[string]Tuple)
+			for k, v := range newScope.tuples {
+				newScope.tuples[k] = v
 			}
 
 			fn := parseFunction(lines, n, &subScope)
@@ -1448,6 +1661,13 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			newScope.items = append(newScope.items, assignment)
 			if newScope.scopeType == Global {
 				panic(fmt.Sprintf("Line %d: global arrays are not allowed in Stella", n))
+			}
+
+		case TupAssignment:
+			assignment := parseTupleAssignment(lines[n], n, &newScope)
+			newScope.items = append(newScope.items, assignment)
+			if newScope.scopeType == Global {
+				panic(fmt.Sprintf("Line %d: global tuples are not allowed in Stella", n))
 			}
 
 		case ArrIndexAssignment:
@@ -1475,6 +1695,16 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			arrExpr := parseArrayExpression(line, expectedType, lineNum, &newScope)
 			newScope.items = append(newScope.items, arrExpr)
 
+		case TupleReturnStatement:
+			if scopeType != FunctionScope {
+				panic(fmt.Sprintf("Line %d: Found return statement outside function scope", n+1))
+			}
+
+			// find expected pattern
+			expectedPattern := findExpectedPattern(lines, n)
+			tupExpr := parseTupleExpression(line, expectedPattern, lineNum, &newScope)
+			newScope.items = append(newScope.items, tupExpr)
+
 		case SelectionIf:
 
 			if newScope.scopeType == Global {
@@ -1497,6 +1727,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			subScope.arrays = make(map[string]Array)
 			for k, v := range newScope.arrays {
 				subScope.arrays[k] = v
+			}
+
+			subScope.tuples = make(map[string]Tuple)
+			for k, v := range newScope.tuples {
+				newScope.tuples[k] = v
 			}
 
 			ifStatement := parseSelection(n, lines, &subScope)
@@ -1556,6 +1791,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				subScope.arrays[k] = v
 			}
 
+			subScope.tuples = make(map[string]Tuple)
+			for k, v := range newScope.tuples {
+				newScope.tuples[k] = v
+			}
+
 			ifStatement := parseSelection(n, lines, &subScope)
 			newScope.items = append(newScope.items, ifStatement)
 
@@ -1586,6 +1826,11 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 			subScope.arrays = make(map[string]Array)
 			for k, v := range newScope.arrays {
 				subScope.arrays[k] = v
+			}
+
+			subScope.tuples = make(map[string]Tuple)
+			for k, v := range newScope.tuples {
+				newScope.tuples[k] = v
 			}
 
 			loop := parseLoop(lines[n], n, &subScope)
@@ -1624,7 +1869,7 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				panic(fmt.Sprintf("Line %d: global macros are not allowed in Stella as they will never execute", n))
 			}
 
-			macro := parseMacro(lines[n], lineNum, &newScope)
+			macro := parseMacro(lines[n], n, &newScope)
 			if newScope.scopeType == Global {
 				panic(fmt.Sprintf("Line %d: found unexpected macro in global scope", n+1))
 			}
@@ -1641,6 +1886,8 @@ func parseScope(lines []string, lineNum int, scopeType ScopeType, parent *Scope)
 				newScope.items = append(newScope.items, closer)
 
 			}
+		default:
+			panic("i forgot to add one of the enum variants into parseScope() lol")
 		}
 	}
 

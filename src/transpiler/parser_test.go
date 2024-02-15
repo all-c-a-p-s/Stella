@@ -10,6 +10,7 @@ func TestParseExpression(t *testing.T) {
 		arrays:    make(map[string]Array),
 		vars:      make(map[string]Variable),
 		functions: make(map[string]Function),
+		tuples:    make(map[string]Tuple),
 	}
 
 	T := ArrayType{
@@ -81,5 +82,11 @@ func TestParseExpression(t *testing.T) {
 	expr7 := parseExpression(tStr, 0, &testScope)
 	if expr7.dataType != String {
 		t.Error("failed string concatenation test")
+	}
+
+	_ = parseTupleDeclaration("let tup: (int, float) = (4, 3.14)", 0, &testScope)
+	expr8 := parseExpression("tup.1", 0, &testScope)
+	if expr8.dataType != Float {
+		t.Error("failed tuple indexing test")
 	}
 }
