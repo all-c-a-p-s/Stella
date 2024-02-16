@@ -102,7 +102,7 @@ type Function struct {
 	tuples            []Tuple
 	paramsOrder       []parameterType
 	identifier        string
-	tupleReturnType   TuplePattern  // optional
+	tupleReturnType   TuplePattern  // optional basically an Option<TuplePattern> from rust but without the type safety
 	derivedReturnType ArrayType     // optional
 	returnType        primitiveType // optional - at least one of optionals must be present (dictated by returnDomain field)
 	returnDomain      returnDomain
@@ -347,8 +347,6 @@ func parseExpression(expression string, lineNum int, currentScope *Scope) Expres
 	if bracketCount != 0 {
 		panic(fmt.Sprintf("Line %d: invalid brackets in expression", lineNum+1))
 	}
-
-	// fmt.Println(parsed)
 
 	var previous, next string
 
@@ -642,12 +640,15 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []Tuple, 
 	var currentString string
 	var stringLiteral bool
 	var bracketCount int
+
+	// split parameter list into tokens to be parsed
 	for i := 0; i < len(params); i++ {
 		if params[i] == '"' {
 			stringLiteral = !stringLiteral
 		}
 		switch params[i] {
 		case '(':
+			// brackets can enclose tokens e.g. tuple, function call
 			if !stringLiteral {
 				bracketCount++
 			}
@@ -658,6 +659,7 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []Tuple, 
 			}
 			currentString += string(params[i])
 		case ',':
+			// split character
 			if stringLiteral {
 				currentString += string(params[i])
 				continue
@@ -722,8 +724,8 @@ func parseParameters(params string, lineNum int) ([]Variable, []Array, []Tuple, 
 			}
 		}
 
-		// arrays and variable parameters put in separate slices
-		// with a separate slice dictating the order
+		// arrays, variable and tuple parameters put in separate slices
+		// with another slice dictating the order
 		if isTup {
 			pattern := parseTuplePattern(dataType, lineNum)
 			newTup := Tuple{
@@ -822,7 +824,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 			break
 		}
 	}
-	// get list of parameters
+	// get list of parameters enclosed by one set of brackets
 
 	if identEnd == len(line) {
 		panic(fmt.Sprintf("Line %d: expected return type annotation after function identifier", lineNum+1))
@@ -843,6 +845,8 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 		(*currentScope).tuples[tup.identifier] = tup
 	}
 
+	// patterns declaration can match after parameter list
+
 	afterIdent := line[identEnd+1:]
 	var afterWords []string
 
@@ -855,6 +859,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	for i := identEnd + 1; i < len(line); i++ {
 		switch line[i] {
 		case '(':
+			// can enclose token such as tuple pattern
 			currentString += string(line[i])
 			bracketCount2++
 		case ')':
@@ -908,6 +913,7 @@ func parseFunction(lines []string, lineNum int, currentScope *Scope) Function {
 	var returnType primitiveType
 	var tuplePattern TuplePattern
 
+	// match return type annotation to return domain
 	if returnDomain == derived {
 		derivedReturnType = parseArrayType(typeAnnotation, lineNum)
 	} else if returnDomain == tuple {
@@ -1013,6 +1019,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			params += string(functionCall[i])
 		}
 	}
+	// separate the function identifier from the list of parameters enclosed by brackets
 
 	if bracketCount != 0 {
 		panic(fmt.Sprintf("Line %d: brackets opened but never closed", lineNum+1))
@@ -1032,6 +1039,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 	var parameterExprs []string
 	var currentParam string
 
+	// tokenise list of parameters
 	for i := 0; i < len(params); i++ {
 		switch params[i] {
 		case '(':
@@ -1059,7 +1067,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 		}
 	}
 
-	// get parameter list
+	// match parameter list found to expected parameters of the function
 
 	if len(parameterExprs) != len(fn.paramsOrder) {
 		panic(fmt.Sprintf("Line %d: function %s takes %d arguments but %d were given", lineNum+1, fn.identifier, len(fn.parameters), len(parameterExprs)))
@@ -1138,6 +1146,7 @@ func parseIfStatement(lineNum int, lines []string, currentScope *Scope) IfStatem
 
 	statements := []SelectionStatement{first}
 
+	// check for valid sequence of if-else-else if
 	for i := lineNum; i < len(lines); i++ {
 		words := strings.Fields(lines[i])
 		if len(words) == 0 {
@@ -1246,7 +1255,7 @@ func parseSelection(lineNum int, lines []string, currentScope *Scope) SelectionS
 }
 
 func parseAssignment(lines []string, lineNum int, currentScope *Scope) Assignment {
-	// parses assignment to variables only
+	// parses assignment to variables only, tuples and arrays have seperate functions
 	line := lines[lineNum]
 	words := strings.Fields(line)
 
@@ -1338,10 +1347,15 @@ func declarationType(line string, lineNum int) itemType {
 
 func assignmentType(line string, lineNum int, currentScope *Scope) itemType {
 	// identify whether variable, array or array index was assigned to
+	// helper function for parseScope so that it knows which function to call
+	// this function doesn't necessarily check that a line is syntactically valid
+	// it just needs to correctly identify which type of line it is
 	words := strings.Fields(line)
 	if len(words) == 0 {
 		panic("assignmentType() called on empty line %d")
 	}
+
+	// check for assignment to scoped identifier
 	_, isVar := (*currentScope).vars[words[0]]
 	_, isArray := (*currentScope).arrays[words[0]]
 	_, isTuple := (*currentScope).tuples[words[0]]
@@ -1432,7 +1446,8 @@ Loop:
 
 func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 	// gets type of line which so that the parseScope() carry out
-	// according parsing
+	// according parsing. again, this doesn't need to check that lines are
+	// syntactically valid, it just needs to correctly identify them
 	words := strings.Fields(line)
 	if len(words) == 0 {
 		return Empty
@@ -1490,6 +1505,8 @@ func getItemType(line string, lineNum int, currentScope *Scope) itemType {
 }
 
 func parseScopeCloser(lines []string, lineNum int) ScopeCloser { // greatest function of all time
+	// scope closer is a line which is just "}"
+	// (not very hard to parse)
 	line := lines[lineNum]
 	words := strings.Fields(line)
 	if len(words) != 1 {
