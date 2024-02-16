@@ -1,0 +1,15 @@
+function fibonacci(n: int) -> int = { //parameters and return type must have explicit type annotation
+    let mut result: int = 1
+    if n > 2 {
+        result = fibonacci(n-1) + fibonacci(n-2) //recursive calls
+    }
+    result // return value is the expression on the last line
+}
+
+function multiply(m: (int, int, int, int), v: (int, int)) -> (int, int) = {
+    (m.0 * v.0 + m.1 * v.1, m.2 * v.0 + m.3 * v.1)
+}
+
+function main() -> IO = {
+  println!("works")
+}

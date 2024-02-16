@@ -1,1 +1,1 @@
-C:\Users\vajol\Documents\goProjects\Stella\src\cli_rs/examplemodule/src/main.ste
+C:\Users\vajol\Documents\goProjects\Stella\src\stella/testing_docs/src/main.ste
