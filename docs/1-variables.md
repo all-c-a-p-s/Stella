@@ -4,7 +4,7 @@ There are three types of variable in Stella: primitive variables, derived variab
 
 ## Primitives
 
-```
+```typescript
 let name: string = "Stella" //type annotation after the colon is mandatory
 let mut version: int = 1 //all variables must be assigned a value
 //  ^ the 'mut' keyword indicates that the variables is mutable
@@ -28,8 +28,8 @@ Derived data types are defined in terms of primitive types.
 
 Arrays are Stella's core implementation of derived data types. They are fixed-size collections of values which are all of the same data type.
 
-```
-let nums: float[3] = [3.14, 2.71, 1.62]
+```typescript
+let nums: float[3] = [3.14, 2.71, 1.62];
 //        ^ type annotation with size in brackets
 // [3.14, 2.71, 1.62] is an array literal
 ```
@@ -41,7 +41,7 @@ A tuple of two booleans can have 2\*2 = 4 possible values (FF, FT, TF, TT). Henc
 
 ### Tuples
 
-```
+```typescript
 let person1: (string, int) = ("Jim", 21)
 let identity_matrix(int, int, int, int) = (1, 0, 0, 1)
 print!(person.0 + "'s age is ") //tuples are indexed using the .n syntax (zero-indexed)

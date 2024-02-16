@@ -4,7 +4,7 @@
 
 All loops in Stella are declared using the `loop` keyword followed by a boolean condition.
 
-```
+```rust
 let mut i: int = 0
 loop i < 10 { //definite iteration
     println!(i)
@@ -12,7 +12,7 @@ loop i < 10 { //definite iteration
 }
 ```
 
-```
+```typescript
 function factorial(x: int) -> int = { //see function documentation for explanation
     let mut n: int = x
     let mut result: int = 1
@@ -24,7 +24,7 @@ function factorial(x: int) -> int = { //see function documentation for explanati
 }
 ```
 
-```
+```rust
 loop true { //infinite loop, no way this condition's ever gonna be false
     println!("are we nearly there yet?")
 }
@@ -34,7 +34,7 @@ loop true { //infinite loop, no way this condition's ever gonna be false
 
 Selection statements in Stella execute code is a certain boolean condition is true.
 
-```
+```typescript
 function grade_score(mark: int) -> string {
     let mut grade: string = ""
     if mark > 90 {
