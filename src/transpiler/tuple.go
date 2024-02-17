@@ -52,7 +52,7 @@ type TupleIndexing struct {
 }
 
 type TupleExpression struct {
-	fnCall   FunctionCall //optional
+	fnCall   FunctionCall // optional
 	literal  TupleLiteral // optional
 	t        Tuple        // optional - one of three must be present
 	exprType TupleExpressionType
@@ -168,18 +168,18 @@ Loop:
 	for i := 0; i < len(expr); i++ {
 		switch expr[i] {
 		case '(':
-			//know from above that it isn't first -> not a literal
+			// know from above that it isn't first -> not a literal
 			break Loop
 		default:
 			currentString += string(expr[i])
 		}
 	}
-	currentString = strings.Trim(currentString, " ") //remove leading spaces
+	currentString = strings.Trim(currentString, " ") // remove leading spaces
 	if fn, ok := (*currentScope).functions[currentString]; ok {
 		// functions returning derived type
 		if fn.returnDomain == tuple {
 			call := parseFunctionCall(strings.Trim(expr, " "), lineNum, currentScope)
-			//check that function call is actually valid
+			// check that function call is actually valid
 			return TupleExpression{
 				fnCall:   call,
 				exprType: FnCall,

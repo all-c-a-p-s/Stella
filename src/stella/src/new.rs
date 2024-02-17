@@ -17,16 +17,19 @@ pub fn create_module(module_name: &str) -> Result<(), String> {
     if path.is_dir() {
         return Err(String::from("already exists"));
     }
-    match fs::create_dir(path) {
-        Ok(file) => Ok(file),
-        Err(error) => panic!("error creating directory {}", error),
+    let create_ok = fs::create_dir(path);
+    if create_ok.is_err() {
+        eprintln!("failed to create directory {}", module_name);
+        std::process::exit(1)
     }
+    Ok(())
 }
 
 pub fn create_directory(dir_name: &str) -> std::io::Result<()> {
     let path = Path::new(dir_name);
     if path.is_dir() {
-        panic!("src directory already exists");
+        eprintln!("src directory already exists");
+        std::process::exit(1)
     }
     match fs::create_dir(path) {
         Ok(file) => Ok(file),
@@ -59,7 +62,8 @@ pub fn create_file(filename: &str) -> std::io::Result<()> {
 pub fn create_subdirectories(module_name: &str) -> std::io::Result<()> {
     let ok = env::set_current_dir(module_name);
     if ok.is_err() {
-        panic!("error entering directory {}", &module_name)
+        eprintln!("error entering directory {}", &module_name);
+        std::process::exit(1)
     }
     create_directory("src")?;
     create_directory("tp")?;
@@ -68,7 +72,8 @@ pub fn create_subdirectories(module_name: &str) -> std::io::Result<()> {
 
     let ok = env::set_current_dir("./..");
     if ok.is_err() {
-        panic!("error exiting src directory")
+        eprintln!("error exiting src directory");
+        std::process::exit(1)
     }
     create_go_files("tp", module_name)?;
 
@@ -78,18 +83,19 @@ pub fn create_subdirectories(module_name: &str) -> std::io::Result<()> {
 pub fn create_stella_files(path: &str) -> std::io::Result<()> {
     let ok = env::set_current_dir(path);
     if ok.is_err() {
-        panic!("error entering directory {}", &path)
+        eprintln!("error entering directory {}", &path);
+        std::process::exit(1)
     }
 
     create_file("main.ste")?;
-    create_file("stella.toml")?;
     Ok(())
 }
 
 pub fn create_go_files(path: &str, module_name: &str) -> std::io::Result<()> {
     let ok = env::set_current_dir(path);
     if ok.is_err() {
-        panic!("error entering directory {}", &path)
+        eprintln!("error entering directory {}", &path);
+        std::process::exit(1)
     }
 
     create_file("main.go")?;
@@ -103,7 +109,8 @@ pub fn new(args: &Args) -> std::io::Result<()> {
         panic!("new() called without new command")
     }
     if args.target.is_some() {
-        panic!("new command used with target argument")
+        eprintln!("new command used with target argument");
+        std::process::exit(1)
     }
     match create_module(args.path.as_str()) {
         Ok(dir) => dir,

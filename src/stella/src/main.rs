@@ -1,10 +1,15 @@
-use std::env;
+use std::{env, process};
 
 pub mod build;
 pub mod error_parser;
 pub mod new;
 pub mod run;
 pub mod tp;
+
+//note on error handling/displaying
+//if the error is a user input error,
+//use eprintln!() and std::process::exit(1)
+//if it is some other error then panic!()
 
 #[derive(Debug)]
 pub struct Args {
@@ -66,11 +71,12 @@ fn main() -> std::io::Result<()> {
     };
 
     if error.is_some() {
-        panic!(
+        eprintln!(
             "error exectuing command {}: \n {}",
             command_args.command,
             error.unwrap_or(String::from("unknown error"))
-        )
+        );
+        process::exit(1)
     }
     Ok(())
 }

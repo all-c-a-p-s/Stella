@@ -8,12 +8,14 @@ use crate::Args;
 pub fn go_run(module_name: &str) -> Result<String, String> {
     let ok = env::set_current_dir(module_name);
     if ok.is_err() {
-        panic!("error entering module directory {}", &module_name)
+        eprintln!("error entering module directory {}", &module_name);
+        std::process::exit(1)
     }
 
     let ok = env::set_current_dir("tp");
     if ok.is_err() {
-        panic!("error entering tp directory {}", &module_name)
+        eprintln!("error entering tp directory {}", &module_name);
+        std::process::exit(1)
     }
 
     let exe_name = String::from(module_name) + ".exe";
@@ -46,11 +48,13 @@ pub fn go_run(module_name: &str) -> Result<String, String> {
 
 pub fn run(args: &Args) -> std::io::Result<()> {
     if args.command != "run" {
-        panic!("run() called without run command")
+        eprintln!("run() called without run command");
+        std::process::exit(1)
     }
 
     if args.target.is_some() {
-        panic!("stella run command used with unexpected target parameter")
+        eprintln!("stella run command used with unexpected target parameter");
+        std::process::exit(1)
     }
 
     let status = match go_run(args.path.as_str()) {

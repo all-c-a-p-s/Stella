@@ -1,6 +1,15 @@
 [package]
 name = "stella"
 version = "0.1.0"
+authors = ["Sebastiano Rebonato-Scott https://github.com/all-c-a-p-s"]
+license = "MIT"
+description = "CLI tool for Stella programming language"
+homepage = "https://github.com/all-c-a-p-s/Stella"
+repository = "https://github.com/all-c-a-p-s/Stella"
+documentation = "https://github.com/all-c-a-p-s/Stella"
+keywords = ["Stella", "stella", "programming", "language", "cli"]
+categories = ["command-line-utilities"]
+readme = "README.md"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

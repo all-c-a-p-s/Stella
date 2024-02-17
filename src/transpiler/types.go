@@ -227,6 +227,9 @@ func expressionType(expression []string, lineNum int, currentScope *Scope) primi
 	}
 
 	if len(expr) == 1 {
+		if expr[0][0] == '"' {
+			return getValType(expr[0], lineNum)
+		}
 		// recursive base case
 		_, ok1 := binaryOperators()[expr[0]]
 		_, ok2 := unaryOperators()[expr[0]]
@@ -465,7 +468,7 @@ func checkByteVal(value string, lineNum int) {
 	}
 	byteVal := []byte(value[1 : len(value)-1])[0]
 	if byteVal > 255 {
-		panic(fmt.Sprintf("Line %d: value '%s' cannot be used as byte because its ASCII code is over 255", lineNum+1, string(byteVal)))
+		panic(fmt.Sprintf("Line %d: value '%s' cannot be used as byte because it is not an ASCII character", lineNum+1, string(byteVal)))
 	}
 }
 
@@ -473,5 +476,11 @@ func checkStringVal(value string, lineNum int) {
 	// valid string literal
 	if !(value[0] == '"' && value[len(value)-1] == '"') {
 		panic(fmt.Sprintf("Line %d: '%s' cannot be used as string value", lineNum+1, value))
+	}
+
+	for i := 1; i < len(value)-1; i++ {
+		if value[i] == '"' {
+			panic(fmt.Sprintf("Line %d: illegal string literal", lineNum+1))
+		}
 	}
 }

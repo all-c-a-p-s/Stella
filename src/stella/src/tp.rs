@@ -18,7 +18,8 @@ pub fn get_diretory(path: &String) -> String {
     };
 
     if path.is_empty() {
-        panic!("path {} has no filename", &path)
+        eprintln!("path {} has no filename", &path);
+        std::process::exit(1)
     }
 
     let mut directory_end: usize = path.len() - 1;
@@ -39,32 +40,35 @@ pub fn get_diretory(path: &String) -> String {
 
 pub fn transpile(args: &Args) -> Result<String, String> {
     if args.command != "tp" {
-        panic!("invalid command")
+        eprintln!("invalid command");
+        std::process::exit(1)
     }
 
     let current_directory: String = match env::current_dir() {
         Ok(path) => format!("{}", path.display()),
         Err(_) => panic!("failed to get current working directory"),
     };
-
-    let compiler_directory = String::from("C:/Users/vajol/Documents/goProjects/Stella/src/cli");
-    let ok = env::set_current_dir(&compiler_directory);
-    if ok.is_err() {
-        panic!("error entering directory {}", &compiler_directory)
-    }
-
+    /*
+        let compiler_directory = String::from("C:/Users/vajol/Documents/goProjects/Stella/src/cli");
+        let ok = env::set_current_dir(&compiler_directory);
+        if ok.is_err() {
+            eprintln!("error entering directory {}", &compiler_directory);
+            std::process::exit(1)
+        }
+    */
     let metadata = current_directory.clone() + "/" + args.path.as_str();
 
     match write_text(metadata, String::from("metadata.txt")) {
         Ok(file) => file,
         Err(_) => panic!("error creating file metadata.txt"),
     };
-
-    let ok = env::set_current_dir(&compiler_directory);
-    if ok.is_err() {
-        panic!("error entering directory {}", &compiler_directory)
-    }
-
+    /*
+        let ok = env::set_current_dir(&compiler_directory);
+        if ok.is_err() {
+            eprintln!("error entering directory {}", &compiler_directory);
+            std::process::exit(1)
+        }
+    */
     let output = if cfg!(target_os = "windows") {
         Command::new("cmd")
             .args(["/C", "cli.exe"])
@@ -89,7 +93,8 @@ pub fn transpile(args: &Args) -> Result<String, String> {
 
     let ok = env::set_current_dir(&current_directory);
     if ok.is_err() {
-        panic!("error entering directory {}", &current_directory)
+        eprintln!("error entering directory {}", &current_directory);
+        std::process::exit(1)
     }
 
     Ok(String::from_utf8(output.stdout).expect("output not valid UTF-8 string"))

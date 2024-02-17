@@ -1,0 +1,53 @@
+function multiply(m: (int, int, int, int), v: (int, int)) -> (int, int) = {
+  //multiply 2x1 vector by 2x2 matrix using tuples
+  (m.0 * v.0 + m.1 * v.1, m.2 * v.0 + m.3 * v.1)
+}
+
+function highest_fibonacci(n: int) -> int = {
+  //function to return the highest fibonacci number under a given number
+  let mut a: int = 0
+  let mut b: int = 1
+  loop b <= n {
+    let temp: int = b
+    b = a + b
+    a = temp
+  }
+  a
+}
+
+function zackendorf_representation(n: int) -> bool = {
+  let mut ok: bool = true //used for error checking
+  if n < 0 {
+    ok = false
+  } else {
+  
+    let mut remaining: int = n
+    loop remaining > 0 {
+      let fib: int = highest_fibonacci(remaining)
+      print!(fib)
+      print!(" ")
+      remaining = remaining-fib
+    }
+  }
+  //function to return the zackendorf representation of any integer
+  ok
+}
+
+function main() -> IO = {
+  let vec: (int, int) = (5, 7)
+  let matrix: (int, int, int, int) = (-1, 0, 0, -1)
+  let result: (int, int) = multiply(matrix, vec)
+
+  print!("result: (")
+  print!(result.0)
+  print!(", ")
+  print!(result.1)
+  println!(")" + "\n") //I need to work on string formatting
+
+  print!("zackendorf representation is: ")
+  let ok: bool = zackendorf_representation(5234)
+  if !ok {
+    panic!("negative input into zackendorf_representation") //program exits here with custom error message
+    println!("it is impossible for this code to run")
+  }
+}

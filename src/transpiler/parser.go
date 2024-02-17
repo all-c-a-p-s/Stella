@@ -1094,6 +1094,12 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			if strings.Trim(parameterExprs[i], " ")[0] == '[' {
 				panic(fmt.Sprintf("Line %d: cannot use array literal as function parameter. Try making a variable (with a type annotation) and passing it instead", lineNum+1))
 			}
+
+			for j := 0; j < len(parameterExprs[i]); j++ {
+				if parameterExprs[i][j] == '(' {
+					panic(fmt.Sprintf("Line %d: function calls returning non-primitive types are not supported as function parameters", lineNum+1))
+				}
+			}
 			// match derived parameter type
 			expectedType := fn.arrays[arrayCount].dataType.baseType
 			arrayExpression := parseArrayExpression(parameterExprs[i], expectedType, lineNum, currentScope)
@@ -1111,7 +1117,8 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			}
 
 			arr := Array{
-				dataType: arrayExpression.dataType,
+				identifier: strings.Trim(parameterExprs[i], " "),
+				dataType:   arrayExpression.dataType,
 			}
 			arrays = append(arrays, arr)
 			arrayCount++
@@ -1119,12 +1126,20 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			if strings.Trim(parameterExprs[i], " ")[0] == '(' {
 				panic(fmt.Sprintf("Line %d: cannot use tuple literal as function parameter. Try making a variable (with a type annotation) and passing it instead", lineNum+1))
 			}
+
+			for j := 0; j < len(parameterExprs[i]); j++ {
+				if parameterExprs[i][j] == '(' {
+					panic(fmt.Sprintf("Line %d: function calls returning non-primitive types are not supported as function parameters", lineNum+1))
+				}
+			}
+
 			// match tuple type
 			expectedPattern := fn.tuples[tupleCount].pattern
 			_ = parseTupleExpression(parameterExprs[i], expectedPattern, lineNum, currentScope)
 			// ^ already checks that it matches the pattern
 			tup := Tuple{
-				pattern: expectedPattern,
+				identifier: strings.Trim(parameterExprs[i], " "),
+				pattern:    expectedPattern,
 			}
 			tuples = append(tuples, tup)
 			tupleCount++
