@@ -31,6 +31,7 @@ pub fn go_run(module_name: &str) -> Result<String, String> {
                 .expect("failed to execute process")
         } else {
             Command::new("sh")
+                .arg("-c")
                 .arg(exe_name.as_str())
                 .output()
                 .expect("failed to execute process")

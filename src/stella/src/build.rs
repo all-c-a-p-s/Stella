@@ -24,7 +24,7 @@ pub fn go_build(path: &str) -> Result<String, String> {
             .expect("failed to execute process")
     } else {
         Command::new("sh")
-            .current_dir(path)
+            .arg("-c")
             .arg("go build .")
             .output()
             .expect("failed to execute process")

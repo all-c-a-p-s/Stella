@@ -76,10 +76,8 @@ pub fn transpile(args: &Args) -> Result<String, String> {
             .expect("failed to execute process")
     } else {
         Command::new("sh")
-            .current_dir("./../cli/")
             .arg("-c")
-            .arg("go run .")
-            .arg(&args.path)
+            .arg("cli.exe")
             .output()
             .expect("failed to execute process")
     };

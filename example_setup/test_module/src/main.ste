@@ -1,3 +1,6 @@
+// this file contains some example code
+// you can delete this module
+
 function multiply(m: (int, int, int, int), v: (int, int)) -> (int, int) = {
   //multiply 2x1 vector by 2x2 matrix using tuples
   (m.0 * v.0 + m.1 * v.1, m.2 * v.0 + m.3 * v.1)
