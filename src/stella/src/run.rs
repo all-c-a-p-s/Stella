@@ -18,7 +18,11 @@ pub fn go_run(module_name: &str) -> Result<String, String> {
         std::process::exit(1)
     }
 
-    let exe_name = String::from(module_name) + ".exe";
+    let exe_name = if cfg!(target_os = "windows") {
+        String::from(module_name) + ".exe"
+    } else {
+        String::from("./") + module_name
+    };
 
     let already_exists = File::open(&exe_name);
     if already_exists.is_ok() {

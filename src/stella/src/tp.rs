@@ -77,7 +77,7 @@ pub fn transpile(args: &Args) -> Result<String, String> {
     } else {
         Command::new("sh")
             .arg("-c")
-            .arg("cli.exe")
+            .arg("./cli")
             .output()
             .expect("failed to execute process")
     };
