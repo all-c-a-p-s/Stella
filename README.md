@@ -66,6 +66,7 @@ stella_projects
 - the command `stella build module_name` builds the transpiled go code in your module into an excutable file
 - the command `stella run module_name` can be called after you have build your module into an executable. It runs the executable file in your terminal.
 - NOTE: all of these commands should be executed from the parent directory of module_name, which should contain the files stella.exe and cli.exe
+- NOTE: on macOS, you may need to write `./stella` instead of `stella` for commands to execute
 
 ## Support:
 
