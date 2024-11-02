@@ -416,10 +416,31 @@ func parseMultiLineTupleExpression(lines []string, lineNum int, pattern TuplePat
 }
 
 func isTupleIndexing(item string) bool { // helper function for Expression.transpile()
-	if item[0] != '"' && parseCharType(item[0]) != number {
+	if parseCharType(item[0]) == letter {
+		var stringLiteral, byteLiteral bool
 		for i := 0; i < len(item); i++ {
-			if item[i] == '.' {
+			// if the first syntactic character we find is '.', since we know the expression is valid
+			// the expression must be tuple indexing
+			if stringLiteral {
+				if item[i] == 34 {
+					stringLiteral = false
+				}
+				continue
+			} else if byteLiteral {
+				if item[i] == 39 {
+					byteLiteral = false
+				}
+				continue
+			}
+			switch item[i] {
+			case '.':
 				return true
+			case '(':
+				return false
+			case 34:
+				stringLiteral = true
+			case 39:
+				byteLiteral = true
 			}
 		}
 	}

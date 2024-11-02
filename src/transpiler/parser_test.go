@@ -1,6 +1,9 @@
 package transpiler
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestParseExpression(t *testing.T) {
 	// most major errors will get caught here

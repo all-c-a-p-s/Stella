@@ -1039,9 +1039,30 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 	var parameterExprs []string
 	var currentParam string
 
+	var stringLiteral, byteLiteral bool
+
 	// tokenise list of parameters
 	for i := 0; i < len(params); i++ {
+		if stringLiteral {
+			currentParam += string(params[i])
+			if params[i] == 34 {
+				stringLiteral = false
+			}
+			goto a
+		} else if byteLiteral {
+			currentParam += string(params[i])
+			if params[i] == 39 {
+				byteLiteral = false
+			}
+			goto a
+		}
 		switch params[i] {
+		case 34:
+			stringLiteral = true
+			currentParam += string(params[i])
+		case 39:
+			byteLiteral = true
+			currentParam += string(params[i])
 		case '(':
 			bracketCount++
 			currentParam += string(params[i])
@@ -1061,6 +1082,7 @@ func parseFunctionCall(functionCall string, lineNum int, currentScope *Scope) Fu
 			currentParam += string(params[i])
 		}
 
+	a:
 		if i == len(params)-1 {
 			parameterExprs = append(parameterExprs, currentParam)
 			break
