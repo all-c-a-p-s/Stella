@@ -26,13 +26,14 @@ The combination of these make it's best use-case scientific modelling. It is eas
 - static typing. This makes it easier for the developer to create a complex and bug-free program, while also enabling the transpiling to the fast compiled language Go.
 - mathematically intuitive syntax (subjective). Some of Stella's syntax is inspired by functional languages such as Haskell (e.g. -> for function return type).
 
-## Installation:
+## Installation (Windows):
 
 - [Install Latest Version of Go](https://go.dev/doc/install) - necessary as Stella code transpiles into Go
 - Note that Stella was developed to work with go 1.21, it is possible that in the future the Go team will make changes to the language meaning that Stella is no longer compatible with the latest version
 - download the example_setup directory, which contains prebuilt binaries
 - (you can then rename the directory and move it to anywhere on your computer)
-- Note: only tested on Windows, this may not work on other Operating Systems
+- NOTE: only tested on Windows, this may not work on other Operating Systems
+- NOTE: if you encounter any errors with the transpiler, please try to bulid from source as outlined in the instructions below, as they may have been patched in the latest version
 
 ### Alternative:
 
