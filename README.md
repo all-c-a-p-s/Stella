@@ -35,7 +35,7 @@ The combination of these make it's best use-case scientific modelling. It is eas
 - NOTE: only tested on Windows, this may not work on other Operating Systems
 - NOTE: if you encounter any errors with the transpiler, please try to bulid from source as outlined in the instructions below, as they may have been patched in the latest version
 
-### Alternative:
+## Alternative Installation:
 
 - [Install Latest Version of Go](https://go.dev/doc/install)
 - [Install Rust](https://www.rust-lang.org/tools/install) - required to build the CLI
