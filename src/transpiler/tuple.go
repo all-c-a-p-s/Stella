@@ -416,7 +416,7 @@ func parseMultiLineTupleExpression(lines []string, lineNum int, pattern TuplePat
 }
 
 func isTupleIndexing(item string) bool { // helper function for Expression.transpile()
-	if item[0] != '"' {
+	if item[0] != '"' && parseCharType(item[0]) != number {
 		for i := 0; i < len(item); i++ {
 			if item[i] == '.' {
 				return true
